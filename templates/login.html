@@ -1,134 +1,109 @@
 {% extends "base.html" %}
 
+{% block head_extra %}
+<style>
+    .topbar { display: none !important; }
+    body { background: #0e5648 !important; }
+    .container { max-width: none !important; padding: 0 !important; margin: 0 !important; }
+</style>
+{% endblock %}
+
 {% block content %}
-<section class="login-screen">
-    <div class="login-bg" aria-hidden="true">
-        <svg class="bg-pattern" viewBox="0 0 800 1200" preserveAspectRatio="xMidYMid slice">
-            <defs>
-                <pattern id="mapGrid" x="0" y="0" width="56" height="56" patternUnits="userSpaceOnUse">
-                    <path d="M56 0H0v56" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
-                </pattern>
-                <radialGradient id="vignette" cx="50%" cy="50%" r="65%">
-                    <stop offset="0%" stop-color="rgba(0,0,0,0)"/>
-                    <stop offset="100%" stop-color="rgba(0,0,0,0.45)"/>
-                </radialGradient>
-            </defs>
-
-            <rect width="800" height="1200" fill="url(#mapGrid)"/>
-
-            <g class="contours" opacity="0.16">
-                <path d="M-20 140 Q200 90 420 150 T820 160" stroke="#ffffff" stroke-width="1.2" fill="none"/>
-                <path d="M-20 195 Q200 145 420 205 T820 215" stroke="#ffffff" stroke-width="1" fill="none"/>
-                <path d="M-20 250 Q200 200 420 260 T820 270" stroke="#ffffff" stroke-width="0.8" fill="none"/>
-                <path d="M-20 760 Q200 720 420 770 T820 780" stroke="#ffffff" stroke-width="1" fill="none"/>
-                <path d="M-20 820 Q200 780 420 830 T820 840" stroke="#ffffff" stroke-width="1.2" fill="none"/>
-                <path d="M-20 880 Q200 840 420 890 T820 900" stroke="#ffffff" stroke-width="0.8" fill="none"/>
-            </g>
-
-            <g class="route-set">
-                <path class="route route-a" d="M40 200 Q220 120 420 240 T780 320" stroke="#fbbf24" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-dasharray="10 8"/>
-                <path class="route route-b" d="M50 540 Q260 460 500 580 T780 660" stroke="#22d3ee" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-dasharray="8 10"/>
-                <path class="route route-c" d="M30 900 Q240 820 480 940 T780 980" stroke="#f97316" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-dasharray="12 8"/>
-                <path class="route route-d" d="M120 80 Q300 200 540 140 T760 220" stroke="rgba(255,255,255,0.35)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-dasharray="6 10"/>
-            </g>
-
-            <g class="markers">
-                <g class="marker m-1" transform="translate(40 200)">
-                    <circle class="ring ring-1" r="6" fill="none" stroke="#fbbf24" stroke-width="1.6"/>
-                    <circle class="ring ring-2" r="6" fill="none" stroke="#fbbf24" stroke-width="1.6"/>
-                    <circle r="4.5" fill="#fbbf24"/>
-                    <circle r="1.6" fill="#0f172a"/>
-                </g>
-                <g class="marker m-2" transform="translate(780 320)">
-                    <circle class="ring ring-1" r="6" fill="none" stroke="#fbbf24" stroke-width="1.6"/>
-                    <circle r="4.5" fill="#fbbf24"/>
-                    <circle r="1.6" fill="#0f172a"/>
-                </g>
-                <g class="marker m-3" transform="translate(50 540)">
-                    <circle class="ring ring-1" r="6" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
-                    <circle class="ring ring-2" r="6" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
-                    <circle r="4.5" fill="#22d3ee"/>
-                    <circle r="1.6" fill="#0f172a"/>
-                </g>
-                <g class="marker m-4" transform="translate(780 660)">
-                    <circle class="ring ring-1" r="6" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
-                    <circle r="4.5" fill="#22d3ee"/>
-                    <circle r="1.6" fill="#0f172a"/>
-                </g>
-                <g class="marker m-5" transform="translate(30 900)">
-                    <circle class="ring ring-1" r="6" fill="none" stroke="#f97316" stroke-width="1.6"/>
-                    <circle class="ring ring-2" r="6" fill="none" stroke="#f97316" stroke-width="1.6"/>
-                    <circle r="4.5" fill="#f97316"/>
-                    <circle r="1.6" fill="#0f172a"/>
-                </g>
-                <g class="marker m-6" transform="translate(780 980)">
-                    <circle class="ring ring-1" r="6" fill="none" stroke="#f97316" stroke-width="1.6"/>
-                    <circle r="4.5" fill="#f97316"/>
-                    <circle r="1.6" fill="#0f172a"/>
-                </g>
-            </g>
-
-            <g class="radar" transform="translate(420 600)">
-                <circle class="radar-pulse rp-1" r="70" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/>
-                <circle class="radar-pulse rp-2" r="70" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/>
-                <circle class="radar-pulse rp-3" r="70" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/>
-                <circle r="6" fill="#ffffff"/>
-                <circle r="3" fill="#0b7a75"/>
-            </g>
-
-            <g class="coords" font-family="monospace" font-size="11" font-weight="700">
-                <text class="coord coord-1" x="60" y="380" fill="rgba(255,255,255,0.55)">12.97° N · 77.59° E</text>
-                <text class="coord coord-2" x="500" y="500" fill="rgba(255,255,255,0.45)">13.08° N · 80.27° E</text>
-                <text class="coord coord-3" x="120" y="780" fill="rgba(255,255,255,0.5)">11.01° N · 76.96° E</text>
-                <text class="coord coord-4" x="460" y="1020" fill="rgba(255,255,255,0.42)">19.07° N · 72.87° E</text>
-            </g>
-
-            <rect width="800" height="1200" fill="url(#vignette)"/>
-        </svg>
+<section class="leaf-login-screen">
+    <div class="leaf-illustration">
+        <img src="{{ url_for('static', filename='leaf-bg.png') }}" alt="Tropical Leaves">
     </div>
 
-    <div class="login-intro">
-        <div class="login-logo">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 22s-7-7.5-7-13a7 7 0 0 1 14 0c0 5.5-7 13-7 13z"/>
-                <circle cx="12" cy="9" r="2.6"/>
-            </svg>
-        </div>
+    <div class="leaf-header">
         <h1>Driver Login</h1>
-        <p>Sign in to start tracking your trips</p>
     </div>
 
-    <div class="login-card">
-        <form method="post" id="loginForm" class="login-form">
-            <label class="login-field">
-                <span class="login-field-label">Username</span>
-                <div class="login-field-input">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
-                    <input type="text" name="username" required autocomplete="username" placeholder="Enter your username">
-                </div>
-            </label>
-
-            <label class="login-field">
-                <span class="login-field-label">Password</span>
-                <div class="login-field-input">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></svg>
-                    <input type="password" name="password" required autocomplete="current-password" placeholder="Enter your password">
-                </div>
-            </label>
-
-            <input type="hidden" name="login_lat" id="loginLat">
-            <input type="hidden" name="login_lng" id="loginLng">
-
-            <div class="login-note" id="locationPermissionMessage" data-state="info">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><circle cx="12" cy="16" r="0.6" fill="currentColor"/></svg>
-                <span>Location permission is required for user login.</span>
+    <form method="post" id="loginForm" class="leaf-form">
+        <label class="leaf-field">
+            <div class="leaf-field-input">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
+                <input type="text" name="username" required autocomplete="username" placeholder="Username">
             </div>
+        </label>
 
-            <button type="submit" class="login-submit">
-                <span>Login</span>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-            </button>
-        </form>
+        <label class="leaf-field">
+            <div class="leaf-field-input">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></svg>
+                <input type="password" name="password" required autocomplete="current-password" placeholder="Password">
+            </div>
+        </label>
+
+        <input type="hidden" name="login_lat" id="loginLat">
+        <input type="hidden" name="login_lng" id="loginLng">
+
+        <button type="submit" class="leaf-submit">
+            Login
+        </button>
+
+        <div class="leaf-note" id="locationPermissionMessage" data-state="info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><circle cx="12" cy="16" r="0.6" fill="currentColor"/></svg>
+            <span>Location permission is required for user login.</span>
+        </div>
+    </form>
+
+    <div class="leaf-tracking-animation" aria-hidden="true">
+        <svg viewBox="0 0 800 400" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
+            <defs>
+                <filter id="bottomGlow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feGaussianBlur stdDeviation="4" result="blur" />
+                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+            </defs>
+            
+            <g class="bottom-contours" stroke="#34d399" fill="none" opacity="0.12">
+                <path d="M-100 150 Q 150 50 350 200 T 900 100" stroke-width="1" />
+                <path d="M-100 250 Q 200 150 400 300 T 900 200" stroke-width="2" />
+                <path d="M-100 350 Q 250 250 450 350 T 900 250" stroke-width="1" />
+            </g>
+
+            <path id="leafTrack1" d="M-100 250 Q 200 150 400 300 T 900 200" stroke="#10b981" stroke-width="2.5" fill="none" stroke-dasharray="8 12" opacity="0.3"/>
+            <path id="leafTrack2" d="M-100 150 Q 150 50 350 200 T 900 100" stroke="#a3e635" stroke-width="1.5" fill="none" stroke-dasharray="4 8" opacity="0.2"/>
+
+            <g filter="url(#bottomGlow)">
+                <circle r="6" fill="#a3e635">
+                    <animateMotion dur="12s" repeatCount="indefinite">
+                        <mpath href="#leafTrack1"/>
+                    </animateMotion>
+                </circle>
+                <circle r="3" fill="#ffffff">
+                    <animateMotion dur="12s" repeatCount="indefinite">
+                        <mpath href="#leafTrack1"/>
+                    </animateMotion>
+                </circle>
+
+                <circle r="4" fill="#34d399">
+                    <animateMotion dur="18s" repeatCount="indefinite" begin="2s">
+                        <mpath href="#leafTrack2"/>
+                    </animateMotion>
+                </circle>
+
+                <g transform="translate(650, 250)">
+                    <circle r="20" fill="none" stroke="#a3e635" stroke-width="2">
+                        <animate attributeName="r" values="5;30" dur="2.5s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="1;0" dur="2.5s" repeatCount="indefinite" />
+                    </circle>
+                    <circle r="30" fill="none" stroke="#a3e635" stroke-width="1">
+                        <animate attributeName="r" values="10;45" dur="2.5s" repeatCount="indefinite" begin="1.25s"/>
+                        <animate attributeName="opacity" values="0.8;0" dur="2.5s" repeatCount="indefinite" begin="1.25s"/>
+                    </circle>
+                    <circle r="6" fill="#a3e635" />
+                    <circle r="2.5" fill="#ffffff" />
+                </g>
+
+                <g transform="translate(150, 115)">
+                    <circle r="15" fill="none" stroke="#34d399" stroke-width="1.5">
+                        <animate attributeName="r" values="4;20" dur="3s" repeatCount="indefinite" />
+                        <animate attributeName="opacity" values="0.8;0" dur="3s" repeatCount="indefinite" />
+                    </circle>
+                    <circle r="4" fill="#34d399" />
+                </g>
+            </g>
+        </svg>
     </div>
 </section>
 
