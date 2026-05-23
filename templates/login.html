@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel narrow">
+    <h2>Login</h2>
+    <form method="post" id="loginForm">
+        <label>
+            Username
+            <input type="text" name="username" required autocomplete="username">
+        </label>
+        <label>
+            Password
+            <input type="password" name="password" required autocomplete="current-password">
+        </label>
+        <input type="hidden" name="login_lat" id="loginLat">
+        <input type="hidden" name="login_lng" id="loginLng">
+        <p class="permission-note" id="locationPermissionMessage">Location permission is required for user login.</p>
+        <button type="submit">Login</button>
+    </form>
+</section>
+
+<script>
+    const loginForm = document.getElementById("loginForm");
+    const loginLat = document.getElementById("loginLat");
+    const loginLng = document.getElementById("loginLng");
+    const locationPermissionMessage = document.getElementById("locationPermissionMessage");
+    const usernameInput = loginForm.querySelector('input[name="username"]');
+    const passwordInput = loginForm.querySelector('input[name="password"]');
+    const savedLoginKey = "driverLoginSavedCredentials";
+    const savedLoginDays = 7;
+    let locationRequested = false;
+
+    function loadSavedCredentials() {
+        const savedValue = localStorage.getItem(savedLoginKey);
+        if (!savedValue) {
+            return;
+        }
+
+        try {
+            const saved = JSON.parse(savedValue);
+            if (!saved.expiresAt || Date.now() > saved.expiresAt) {
+                localStorage.removeItem(savedLoginKey);
+                return;
+            }
+
+            usernameInput.value = saved.username || "";
+            passwordInput.value = saved.password || "";
+        } catch {
+            localStorage.removeItem(savedLoginKey);
+        }
+    }
+
+    function saveCredentialsForSevenDays() {
+        const expiresAt = Date.now() + savedLoginDays * 24 * 60 * 60 * 1000;
+        localStorage.setItem(savedLoginKey, JSON.stringify({
+            username: usernameInput.value,
+            password: passwordInput.value,
+            expiresAt: expiresAt
+        }));
+    }
+
+    function setPermissionMessage(message, state) {
+        locationPermissionMessage.textContent = message;
+        locationPermissionMessage.dataset.state = state;
+    }
+
+    loginForm.addEventListener("submit", function (event) {
+        saveCredentialsForSevenDays();
+
+        if (locationRequested || loginLat.value) {
+            return;
+        }
+
+        if (!("geolocation" in navigator)) {
+            setPermissionMessage("Location is not available in this browser. User login requires location permission.", "error");
+            return;
+        }
+
+        event.preventDefault();
+        locationRequested = true;
+        setPermissionMessage("Please allow location permission to continue login.", "pending");
+
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                loginLat.value = position.coords.latitude;
+                loginLng.value = position.coords.longitude;
+                setPermissionMessage("Location allowed. Logging in...", "success");
+                loginForm.submit();
+            },
+            function () {
+                setPermissionMessage("Please allow location permission to login.", "error");
+                loginForm.submit();
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
+    });
+
+    loadSavedCredentials();
+</script>
+{% endblock %}

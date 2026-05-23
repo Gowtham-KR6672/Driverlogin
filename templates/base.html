@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b7a75">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Driver Login">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <title>Driver Login</title>
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="icon" href="{{ url_for('static', filename='icons/app-icon.svg') }}" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/app-icon-192.png') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+    <header class="topbar">
+        <div>
+            <h1>Driver Login</h1>
+            <p>Work entry system</p>
+        </div>
+        {% if logged_in_user %}
+            <nav>
+                <button type="button" class="install-app-button" id="installAppButton" hidden>Install App</button>
+                <span>Time: {{ app_timezone }}</span>
+                <span>{{ logged_in_user.username }} ({{ logged_in_user.role }})</span>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            </nav>
+        {% else %}
+            <nav>
+                <button type="button" class="install-app-button" id="installAppButton" hidden>Install App</button>
+            </nav>
+        {% endif %}
+    </header>
+
+    <div class="{% if logged_in_user %}app-shell{% endif %}">
+        {% if logged_in_user %}
+            <aside class="sidebar">
+                <div class="profile-card">
+                    <div class="avatar">{{ logged_in_user.username[:1].upper() }}</div>
+                    <div>
+                        <h2>{{ logged_in_user.username }}</h2>
+                        <p>{{ logged_in_user.role|capitalize }} Profile</p>
+                    </div>
+                </div>
+                {% if logged_in_user.role == 'admin' %}
+                    <nav class="side-nav">
+                        <a class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}" href="{{ url_for('admin_dashboard') }}">Home</a>
+                        <a class="{% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}">User</a>
+                        <a class="{% if request.endpoint == 'admin_work' %}active{% endif %}" href="{{ url_for('admin_work') }}">Work</a>
+                    </nav>
+                    <div class="sidebar-section-title">Created Users</div>
+                    <nav class="side-nav user-list-nav">
+                        {% for sidebar_user in admin_sidebar_users %}
+                            <a class="{% if request.endpoint == 'admin_work' and request.args.get('user_id')|int == sidebar_user.id %}active{% endif %}" href="{{ url_for('admin_work', user_id=sidebar_user.id) }}">
+                                {{ sidebar_user.username }}
+                            </a>
+                        {% else %}
+                            <span class="empty-sidebar">No users created</span>
+                        {% endfor %}
+                    </nav>
+                {% else %}
+                    <nav class="side-nav">
+                        <a class="{% if request.endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Home</a>
+                        <a class="{% if request.endpoint == 'work_entry' %}active{% endif %}" href="{{ url_for('work_entry') }}">Work Entry</a>
+                        <a class="{% if request.endpoint == 'history' %}active{% endif %}" href="{{ url_for('history') }}">History</a>
+                    </nav>
+                {% endif %}
+            </aside>
+        {% endif %}
+
+        <main class="container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="messages">
+                        {% for category, message in messages %}
+                            <div class="message {{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% block scripts %}{% endblock %}
+    <script>
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", function () {
+                navigator.serviceWorker.register("{{ url_for('static', filename='service-worker.js') }}");
+            });
+        }
+
+        let installPromptEvent = null;
+        const installAppButton = document.getElementById("installAppButton");
+
+        window.addEventListener("beforeinstallprompt", function (event) {
+            event.preventDefault();
+            installPromptEvent = event;
+            if (installAppButton) {
+                installAppButton.hidden = false;
+            }
+        });
+
+        if (installAppButton) {
+            installAppButton.addEventListener("click", async function () {
+                if (!installPromptEvent) {
+                    return;
+                }
+
+                installPromptEvent.prompt();
+                await installPromptEvent.userChoice;
+                installPromptEvent = null;
+                installAppButton.hidden = true;
+            });
+        }
+
+        window.addEventListener("appinstalled", function () {
+            if (installAppButton) {
+                installAppButton.hidden = true;
+            }
+        });
+
+        const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+        const isStandalone = window.navigator.standalone || window.matchMedia("(display-mode: standalone)").matches;
+        if (installAppButton && isIos && !isStandalone) {
+            installAppButton.hidden = false;
+            installAppButton.textContent = "Add to Home Screen";
+            installAppButton.addEventListener("click", function () {
+                alert("On iPhone or iPad, tap Share, then Add to Home Screen.");
+            }, { once: true });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel">
+    <h2>Welcome back, {{ logged_in_user.username }}!</h2>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-hours">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <polyline points="12 7 12 12 15 14"></polyline>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <div class="stat-label">Total Travelled Hours</div>
+                <div class="stat-value">{{ current_month_stats.total_hours_display }}</div>
+                <div class="stat-subtitle">{{ current_month_stats.total_hours }} hrs</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-km">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s-7-7.5-7-13a7 7 0 0 1 14 0c0 5.5-7 13-7 13z"></path>
+                    <circle cx="12" cy="9" r="2.5"></circle>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <div class="stat-label">Total Travelled Km</div>
+                <div class="stat-value">{{ current_month_stats.total_km }}</div>
+                <div class="stat-subtitle">kilometers</div>
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-icon stat-icon-entries">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="6" y="4" width="12" height="17" rx="2"></rect>
+                    <path d="M9 4h6v3H9z"></path>
+                    <line x1="9" y1="12" x2="15" y2="12"></line>
+                    <line x1="9" y1="16" x2="13" y2="16"></line>
+                </svg>
+            </div>
+            <div class="stat-content">
+                <div class="stat-label">Total Entries</div>
+                <div class="stat-value">{{ current_month_stats.total_entries }}</div>
+                <div class="stat-subtitle">this month</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="panel chart-panel">
+    <div class="chart-header">
+        <h2>Weekly Activity</h2>
+        <span class="chart-sub">Hours travelled · last 7 days</span>
+    </div>
+
+    <div class="chart-bars">
+        {% for day in chart_data.daily %}
+        <div class="chart-bar-col">
+            <div class="chart-bar-track">
+                <div class="chart-bar-value">{{ day.hours_label }}</div>
+                <div class="chart-bar" style="height: {{ day.height_pct }}%;"></div>
+            </div>
+            <div class="chart-bar-label">{{ day.day_label }}</div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="chart-footer">
+        <span class="chart-legend"><span class="chart-legend-dot" style="background: #0b7a75;"></span>Hours</span>
+        <span class="chart-peak">Peak: {{ chart_data.max_hours_label }}</span>
+    </div>
+</section>
+
+<section class="panel chart-panel">
+    <div class="chart-header">
+        <h2>Vehicle Usage</h2>
+        <span class="chart-sub">All-time entry split</span>
+    </div>
+
+    {% if chart_data.vehicles.total > 0 %}
+    <div class="donut-wrap">
+        <svg class="donut" viewBox="0 0 100 100">
+            <circle class="donut-track" cx="50" cy="50" r="42" />
+            <circle
+                class="donut-segment"
+                cx="50" cy="50" r="42"
+                stroke-dasharray="{{ chart_data.vehicles.car_dash }} {{ chart_data.vehicles.circumference }}"
+                transform="rotate(-90 50 50)"
+            />
+            <text x="50" y="46" class="donut-value">{{ chart_data.vehicles.total }}</text>
+            <text x="50" y="60" class="donut-label">Entries</text>
+        </svg>
+
+        <div class="donut-legend">
+            <div class="donut-legend-row">
+                <span class="donut-legend-dot car"></span>
+                <div>
+                    <div class="donut-legend-label">Car</div>
+                    <div class="donut-legend-value">{{ chart_data.vehicles.car_count }} · {{ chart_data.vehicles.car_pct }}%</div>
+                </div>
+            </div>
+            <div class="donut-legend-row">
+                <span class="donut-legend-dot bike"></span>
+                <div>
+                    <div class="donut-legend-label">Bike</div>
+                    <div class="donut-legend-value">{{ chart_data.vehicles.bike_count }} · {{ chart_data.vehicles.bike_pct }}%</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="chart-empty">No work entries yet. Start a work entry to see your vehicle usage here.</div>
+    {% endif %}
+</section>
+{% endblock %}

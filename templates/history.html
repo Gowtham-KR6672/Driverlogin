@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+    {% if entries %}
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <h2>History</h2>
+
+    <form method="get" class="history-filter">
+        <label>
+            From date
+            <input type="date" name="from_date" value="{{ from_date }}">
+        </label>
+        <label>
+            To date
+            <input type="date" name="to_date" value="{{ to_date }}">
+        </label>
+        <div class="filter-actions">
+            <button type="submit">Filter</button>
+            <button type="submit" formaction="{{ url_for('download_history') }}">Download</button>
+            <a class="button-link" href="{{ url_for('history') }}">Clear</a>
+        </div>
+    </form>
+
+    <div class="summary-row">
+        <div class="summary-box">
+            <span>Total Hours</span>
+            <strong>{{ total.display }}</strong>
+            <small>{{ total.hours }} hours</small>
+        </div>
+        <div class="summary-box">
+            <span>Completed Entries</span>
+            <strong>{{ entries|length }}</strong>
+            <small>
+                {% if from_date or to_date %}
+                    Selected date range
+                {% else %}
+                    All history
+                {% endif %}
+            </small>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Work Given Person</th>
+                <th>Vehicle</th>
+                <th>Start Time</th>
+                <th>End Time</th>
+                <th>Total Time</th>
+                <th>Travel Distance</th>
+                <th>Remarks</th>
+                <th>Route Map</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries %}
+                <tr>
+                    <td data-label="Work Given Person">{{ entry.work_given_person }}</td>
+                    <td data-label="Vehicle">{{ entry.vehicle_type|capitalize }}</td>
+                    <td data-label="Start Time">{{ entry.next_start_time.strftime("%Y-%m-%d %H:%M") }}</td>
+                    <td data-label="End Time">{{ entry.end_time.strftime("%Y-%m-%d %H:%M") }}</td>
+                    <td data-label="Total Time">{{ entry.duration }}</td>
+                    <td data-label="Travel Distance">{{ entry.distance_display }}</td>
+                    <td data-label="Remarks">{{ entry.remarks or "-" }}</td>
+                    <td data-label="Route Map">
+                        <div class="route-map-cell">
+                            <button type="button" class="route-map-expand" data-entry-id="{{ entry.id }}">View Route</button>
+                        </div>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="8">No completed work history yet.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% if entries %}
+    <div class="map-modal" id="routeMapModal" aria-hidden="true">
+        <div class="map-modal-panel" role="dialog" aria-modal="true" aria-labelledby="routeMapModalTitle">
+            <div class="map-modal-header">
+                <h3 id="routeMapModalTitle">Saved Route Map</h3>
+                <button type="button" class="map-modal-close" id="closeRouteMapModal">Close</button>
+            </div>
+            <div id="expandedRouteMap" class="expanded-route-map"></div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+    {% if entries %}
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script>
+            const satelliteTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+            const roadTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}";
+            const labelTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+            const routeCache = new Map();
+            const routeMapModal = document.getElementById("routeMapModal");
+            const closeRouteMapModal = document.getElementById("closeRouteMapModal");
+            let expandedMap = null;
+
+            function addSatelliteLayers(map, showAttribution) {
+                L.tileLayer(satelliteTiles, {
+                    maxZoom: 19,
+                    attribution: showAttribution ? "Tiles &copy; Esri" : ""
+                }).addTo(map);
+                L.tileLayer(roadTiles, {
+                    maxZoom: 19,
+                    attribution: showAttribution ? "Roads &copy; Esri" : ""
+                }).addTo(map);
+                L.tileLayer(labelTiles, {
+                    maxZoom: 19,
+                    pane: "overlayPane",
+                    attribution: showAttribution ? "Labels &copy; Esri" : ""
+                }).addTo(map);
+            }
+
+            function fitRoute(map, line, points) {
+                if (points.length > 1) {
+                    map.fitBounds(line.getBounds(), { maxZoom: 17, padding: [28, 28] });
+                } else {
+                    map.setView(points[0], 17);
+                }
+            }
+
+            async function getRoute(entryId) {
+                if (routeCache.has(entryId)) {
+                    return routeCache.get(entryId);
+                }
+
+                const response = await fetch(`/work-entry/${entryId}/route`);
+                const result = await response.json();
+                routeCache.set(entryId, result);
+                return result;
+            }
+
+            async function openExpandedRoute(entryId, button) {
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = "Loading...";
+                }
+
+                const result = await getRoute(entryId);
+
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = "View Route";
+                }
+
+                if (!result || !result.has_route) {
+                    alert("No saved route available for this entry.");
+                    return;
+                }
+
+                routeMapModal.classList.add("is-open");
+                routeMapModal.setAttribute("aria-hidden", "false");
+
+                if (expandedMap) {
+                    expandedMap.remove();
+                }
+
+                expandedMap = L.map("expandedRouteMap");
+                addSatelliteLayers(expandedMap, true);
+                const points = result.route.map((point) => [point.lat, point.lng]);
+                const line = L.polyline(points, { color: "#f59e0b", weight: 6 }).addTo(expandedMap);
+                L.marker(points[0]).addTo(expandedMap).bindPopup("Start");
+                L.marker(points[points.length - 1]).addTo(expandedMap).bindPopup("End");
+                setTimeout(function () {
+                    expandedMap.invalidateSize();
+                    fitRoute(expandedMap, line, points);
+                }, 50);
+            }
+
+            function closeExpandedRoute() {
+                routeMapModal.classList.remove("is-open");
+                routeMapModal.setAttribute("aria-hidden", "true");
+                if (expandedMap) {
+                    expandedMap.remove();
+                    expandedMap = null;
+                }
+            }
+
+            closeRouteMapModal.addEventListener("click", closeExpandedRoute);
+            routeMapModal.addEventListener("click", function (event) {
+                if (event.target === routeMapModal) {
+                    closeExpandedRoute();
+                }
+            });
+
+            document.querySelectorAll(".route-map-expand").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    openExpandedRoute(button.dataset.entryId, button);
+                });
+            });
+        </script>
+    {% endif %}
+{% endblock %}

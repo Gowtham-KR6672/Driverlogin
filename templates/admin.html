@@ -1,0 +1,461 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if admin_tab == "home" %}
+    <section class="admin-home-grid">
+        <div class="summary-box admin-stat-card">
+            <span>Total Employees</span>
+            <strong>{{ home_stats.employee_count }}</strong>
+            <small>Registered driver users</small>
+        </div>
+        <div class="summary-box admin-stat-card">
+            <span>Total Travelled Hrs</span>
+            <strong>{{ home_stats.travel_hours_display }}</strong>
+            <small>{{ home_stats.travel_hours }} hours in {{ home_stats.month_label }}</small>
+        </div>
+        <div class="summary-box admin-stat-card">
+            <span>Total Travelled Km</span>
+            <strong>{{ home_stats.travel_km }} km</strong>
+            <small>Current month</small>
+        </div>
+    </section>
+
+    <section class="panel">
+        <h2>Started Work</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Work Given Person</th>
+                    <th>Vehicle</th>
+                    <th>Start Time</th>
+                    <th>Travel Distance</th>
+                    <th>Last Location</th>
+                    <th>Work Entries</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in home_stats.active_entries %}
+                    <tr>
+                        <td data-label="User">{{ entry.username }}</td>
+                        <td data-label="Work Given Person">{{ entry.work_given_person }}</td>
+                        <td data-label="Vehicle">{{ entry.vehicle_type|capitalize }}</td>
+                        <td data-label="Start Time">{{ entry.next_start_time.strftime("%Y-%m-%d %H:%M") }}</td>
+                        <td data-label="Travel Distance">{{ entry.distance_display }}</td>
+                        <td data-label="Last Location">
+                            {% if entry.location_updated_at %}
+                                {{ entry.location_updated_at.strftime("%Y-%m-%d %H:%M") }}
+                            {% else %}
+                                Waiting
+                            {% endif %}
+                        </td>
+                        <td data-label="Work Entries">
+                            <a href="{{ url_for('admin_work', user_id=entry.user_id) }}">View</a>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="7">No users have started work right now.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+{% elif admin_tab == "users" %}
+    <section class="grid">
+        <div class="panel">
+            <h2>Create User Login</h2>
+            <form method="post" action="{{ url_for('admin_users') }}">
+                <label>
+                    Username
+                    <input type="text" name="username" required>
+                </label>
+                <label>
+                    Password
+                    <input type="password" name="password" required>
+                </label>
+                <button type="submit">Create User</button>
+            </form>
+        </div>
+
+        <div class="panel">
+            <h2>Registered Users</h2>
+            <div class="registered-user-list">
+                {% for user in users %}
+                    <article class="registered-user-card">
+                        <div class="registered-user-main">
+                            <div class="registered-user-avatar">{{ user.username[:1].upper() }}</div>
+                            <div class="registered-user-title">
+                                <h3>{{ user.username }}</h3>
+                                <span class="role-badge role-{{ user.role }}">{{ user.role }}</span>
+                            </div>
+                        </div>
+                        <dl class="registered-user-meta">
+                            <div>
+                                <dt>Created</dt>
+                                <dd>{{ user.created_at.strftime("%Y-%m-%d %H:%M") }}</dd>
+                            </div>
+                            <div>
+                                <dt>Status</dt>
+                                <dd>{{ "Manageable" if user.role == "user" else "Protected" }}</dd>
+                            </div>
+                        </dl>
+                        {% if user.role == "user" %}
+                            <div class="registered-user-actions">
+                                <form method="post" action="{{ url_for('reset_user_password', user_id=user.id) }}" class="user-card-reset-form">
+                                    <input type="password" name="new_password" placeholder="New password" required>
+                                    <button type="submit">Reset</button>
+                                </form>
+                                <form method="post" action="{{ url_for('delete_user', user_id=user.id) }}" class="user-card-delete-form" onsubmit="return confirm('Delete {{ user.username }} and all work entries?');">
+                                    <button type="submit" class="danger-button">Delete</button>
+                                </form>
+                            </div>
+                        {% else %}
+                            <div class="registered-user-protected">Admin account cannot be reset or deleted here.</div>
+                        {% endif %}
+                    </article>
+                {% else %}
+                    <div class="empty-state">No users created yet.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </section>
+{% elif admin_tab == "work" %}
+    <section class="panel">
+        <h2>Select Employee</h2>
+        <form method="get" action="{{ url_for('admin_work') }}" class="employee-select-form">
+            <label>
+                Employee
+                <select name="user_id" required>
+                    <option value="">Choose employee</option>
+                    {% for user in users if user.role == "user" %}
+                        <option value="{{ user.id }}" {% if selected_user and selected_user.id == user.id %}selected{% endif %}>{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <button type="submit">Show Work Entries</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <div class="panel-heading-row">
+            <h2>
+                {% if selected_user %}
+                    {{ selected_user.username }} Work Entries
+                {% else %}
+                    Work Entries
+                {% endif %}
+            </h2>
+            {% if selected_user %}
+                <a class="button-link" href="{{ url_for('download_admin_data', user_id=selected_user.id) }}">Download</a>
+            {% endif %}
+        </div>
+        {% if selected_user %}
+            <div class="admin-detail-layout">
+                <div>
+                    <div class="summary-row">
+                        <div class="summary-box">
+                            <span>Total Time</span>
+                            <strong>{{ total.display }}</strong>
+                            <small>{{ total.hours }} hours</small>
+                        </div>
+                        <div class="summary-box">
+                            <span>Entry Count</span>
+                            <strong>{{ total.entry_count }}</strong>
+                            <small>Selected user only</small>
+                        </div>
+                    </div>
+                    {% if total.entry_count > entries|length %}
+                        <p class="table-note">Showing latest {{ entries|length }} entries for faster loading. Use Download for full data.</p>
+                    {% endif %}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Work Given Person</th>
+                                <th>Vehicle</th>
+                                <th>Start Time</th>
+                                <th>End Time</th>
+                                <th>Total Time</th>
+                                <th>Travel Distance</th>
+                                <th>Remarks</th>
+                                <th>Route Map</th>
+                                <th>Submitted</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for entry in entries %}
+                                <tr>
+                                    <td data-label="User">{{ entry.username }}</td>
+                                    <td data-label="Work Given Person">{{ entry.work_given_person }}</td>
+                                    <td data-label="Vehicle">{{ entry.vehicle_type|capitalize }}</td>
+                                    <td data-label="Start Time">{{ entry.next_start_time.strftime("%Y-%m-%d %H:%M") }}</td>
+                                    <td data-label="End Time">
+                                        {% if entry.end_time %}
+                                            {{ entry.end_time.strftime("%Y-%m-%d %H:%M") }}
+                                        {% else %}
+                                            In progress
+                                        {% endif %}
+                                    </td>
+                                    <td data-label="Total Time">{{ entry.duration }}</td>
+                                    <td data-label="Travel Distance">{{ entry.distance_display }}</td>
+                                    <td data-label="Remarks">{{ entry.remarks or "-" }}</td>
+                                    <td data-label="Route Map">
+                                        <div class="route-map-cell">
+                                            <button type="button" class="route-map-expand" data-entry-id="{{ entry.id }}">View Route</button>
+                                        </div>
+                                    </td>
+                                    <td data-label="Submitted">{{ entry.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+                                </tr>
+                            {% else %}
+                                <tr>
+                                    <td colspan="10">No entries yet.</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <aside class="map-card">
+                    <div class="map-card-header">
+                        <h3>Live Satellite Track</h3>
+                        <span id="mapStatus">Waiting for location</span>
+                    </div>
+                    <div id="liveMap" class="live-map"></div>
+                    <p id="mapDistance" class="map-note">Travel distance: 0.00 km</p>
+                    <p id="mapUpdatedAt" class="map-note">Location appears while the user has active work and allows browser location access.</p>
+                </aside>
+            </div>
+        {% else %}
+            <p class="table-note">Select an employee to view their work entries, travel time, distance, and route maps.</p>
+        {% endif %}
+    </section>
+{% endif %}
+{% if selected_user %}
+    <div class="map-modal" id="routeMapModal" aria-hidden="true">
+        <div class="map-modal-panel" role="dialog" aria-modal="true" aria-labelledby="routeMapModalTitle">
+            <div class="map-modal-header">
+                <h3 id="routeMapModalTitle">Saved Route Map</h3>
+                <button type="button" class="map-modal-close" id="closeRouteMapModal">Close</button>
+            </div>
+            <div id="expandedRouteMap" class="expanded-route-map"></div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+    {% if selected_user %}
+        <script>
+            const selectedUserId = {{ selected_user.id }};
+            const initialLocation = {% if active_location %}{
+                lat: {{ active_location.current_lat }},
+                lng: {{ active_location.current_lng }},
+                distanceKm: {{ active_location.distance_km or 0 }},
+                updatedAt: "{{ active_location.location_updated_at.strftime('%Y-%m-%d %H:%M:%S') if active_location.location_updated_at else '' }}"
+            }{% else %}null{% endif %};
+
+            const mapStatus = document.getElementById("mapStatus");
+            const mapUpdatedAt = document.getElementById("mapUpdatedAt");
+            const mapDistance = document.getElementById("mapDistance");
+            let leafletReady = null;
+            let liveMap = null;
+            let marker = null;
+            let routeLine = null;
+
+            const satelliteTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+            const roadTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}";
+            const labelTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+
+            function ensureLeafletLoaded() {
+                if (window.L) {
+                    return Promise.resolve();
+                }
+
+                if (leafletReady) {
+                    return leafletReady;
+                }
+
+                leafletReady = new Promise(function (resolve, reject) {
+                    const css = document.createElement("link");
+                    css.rel = "stylesheet";
+                    css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+                    document.head.appendChild(css);
+
+                    const script = document.createElement("script");
+                    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.body.appendChild(script);
+                });
+
+                return leafletReady;
+            }
+
+            function addSatelliteLayers(map, showAttribution) {
+                L.tileLayer(satelliteTiles, {
+                    maxZoom: 19,
+                    attribution: showAttribution ? "Tiles &copy; Esri" : ""
+                }).addTo(map);
+                L.tileLayer(roadTiles, {
+                    maxZoom: 19,
+                    attribution: showAttribution ? "Roads &copy; Esri" : ""
+                }).addTo(map);
+                L.tileLayer(labelTiles, {
+                    maxZoom: 19,
+                    pane: "overlayPane",
+                    attribution: showAttribution ? "Labels &copy; Esri" : ""
+                }).addTo(map);
+            }
+
+            async function initLiveMap(location) {
+                await ensureLeafletLoaded();
+                const defaultLocation = location || { lat: 20.5937, lng: 78.9629 };
+
+                if (!liveMap) {
+                    liveMap = L.map("liveMap").setView([defaultLocation.lat, defaultLocation.lng], location ? 15 : 5);
+                    marker = L.marker([defaultLocation.lat, defaultLocation.lng]).addTo(liveMap);
+                    routeLine = L.polyline([], { color: "#f59e0b", weight: 5 }).addTo(liveMap);
+                    addSatelliteLayers(liveMap, true);
+                }
+            }
+
+            async function renderLocation(location) {
+                if (!location || !location.has_location) {
+                    mapStatus.textContent = "No active location";
+                    mapDistance.textContent = "Travel distance: 0.00 km";
+                    mapUpdatedAt.textContent = "The user must start work and allow location access.";
+                    if (routeLine) {
+                        routeLine.setLatLngs([]);
+                    }
+                    return;
+                }
+
+                await initLiveMap(location);
+                const latLng = [location.lat, location.lng];
+                const routePoints = (location.route || []).map((point) => [point.lat, point.lng]);
+                marker.setLatLng(latLng);
+                routeLine.setLatLngs(routePoints);
+                if (routePoints.length > 1) {
+                    liveMap.fitBounds(routeLine.getBounds(), { maxZoom: 17, padding: [24, 24] });
+                } else {
+                    liveMap.setView(latLng, 15);
+                }
+                mapStatus.textContent = "Live";
+                mapDistance.textContent = `Travel distance: ${Number(location.distance_km || 0).toFixed(2)} km`;
+                mapUpdatedAt.textContent = `Last updated: ${location.updated_at}`;
+            }
+
+            if (initialLocation) {
+                renderLocation({
+                    has_location: true,
+                    lat: initialLocation.lat,
+                    lng: initialLocation.lng,
+                    distance_km: initialLocation.distanceKm,
+                    updated_at: initialLocation.updatedAt
+                });
+            } else {
+                renderLocation(null);
+            }
+
+            async function refreshLocation() {
+                const response = await fetch(`/admin/users/${selectedUserId}/location`);
+                const location = await response.json();
+                if (location.has_location || liveMap) {
+                    renderLocation(location);
+                } else {
+                    mapStatus.textContent = "No active location";
+                    mapDistance.textContent = "Travel distance: 0.00 km";
+                    mapUpdatedAt.textContent = "The user must start work and allow location access.";
+                }
+            }
+
+            if (initialLocation) {
+                setInterval(refreshLocation, 10000);
+            }
+
+            const routeCache = new Map();
+            const routeMapModal = document.getElementById("routeMapModal");
+            const closeRouteMapModal = document.getElementById("closeRouteMapModal");
+            let expandedMap = null;
+
+            function fitRoute(map, line, points) {
+                if (points.length > 1) {
+                    map.fitBounds(line.getBounds(), { maxZoom: 17, padding: [28, 28] });
+                } else {
+                    map.setView(points[0], 17);
+                }
+            }
+
+            async function getRoute(entryId) {
+                if (routeCache.has(entryId)) {
+                    return routeCache.get(entryId);
+                }
+
+                const response = await fetch(`/work-entry/${entryId}/route`);
+                const result = await response.json();
+                routeCache.set(entryId, result);
+                return result;
+            }
+
+            async function openExpandedRoute(entryId, button) {
+                if (button) {
+                    button.disabled = true;
+                    button.textContent = "Loading...";
+                }
+
+                const result = await getRoute(entryId);
+
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = "View Route";
+                }
+
+                if (!result || !result.has_route) {
+                    alert("No saved route available for this entry.");
+                    return;
+                }
+
+                await ensureLeafletLoaded();
+                routeMapModal.classList.add("is-open");
+                routeMapModal.setAttribute("aria-hidden", "false");
+
+                if (expandedMap) {
+                    expandedMap.remove();
+                }
+
+                expandedMap = L.map("expandedRouteMap");
+                addSatelliteLayers(expandedMap, true);
+                const points = result.route.map((point) => [point.lat, point.lng]);
+                const line = L.polyline(points, { color: "#f59e0b", weight: 6 }).addTo(expandedMap);
+                L.marker(points[0]).addTo(expandedMap).bindPopup("Start");
+                L.marker(points[points.length - 1]).addTo(expandedMap).bindPopup("End");
+                setTimeout(function () {
+                    expandedMap.invalidateSize();
+                    fitRoute(expandedMap, line, points);
+                }, 50);
+            }
+
+            function closeExpandedRoute() {
+                routeMapModal.classList.remove("is-open");
+                routeMapModal.setAttribute("aria-hidden", "true");
+                if (expandedMap) {
+                    expandedMap.remove();
+                    expandedMap = null;
+                }
+            }
+
+            closeRouteMapModal.addEventListener("click", closeExpandedRoute);
+            routeMapModal.addEventListener("click", function (event) {
+                if (event.target === routeMapModal) {
+                    closeExpandedRoute();
+                }
+            });
+
+            document.querySelectorAll(".route-map-expand").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    openExpandedRoute(button.dataset.entryId, button);
+                });
+            });
+        </script>
+    {% endif %}
+{% endblock %}

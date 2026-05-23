@@ -1,0 +1,243 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+    {% if entries %}
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<section class="panel">
+    <h2>Work Entry</h2>
+    <form method="post" class="work-form" id="workStartForm">
+        <label>
+            Work given person
+            <select name="work_given_person" id="workGivenPerson" required>
+                <option value="">Select person</option>
+                {% for person in work_people %}
+                    <option value="{{ person }}">{{ person }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="other-person-field" id="otherPersonField">
+            Enter person name
+            <input type="text" name="other_work_given_person" id="otherWorkGivenPerson">
+        </label>
+        <label>
+            Vehicle
+            <select name="vehicle_type" required>
+                <option value="">Select vehicle</option>
+                <option value="car">Car</option>
+                <option value="bike">Bike</option>
+            </select>
+        </label>
+        <label class="full">
+            Remarks
+            <textarea name="remarks" rows="4" required></textarea>
+        </label>
+        <input type="hidden" name="start_lat" id="startLat">
+        <input type="hidden" name="start_lng" id="startLng">
+        <p class="permission-note full" id="startLocationMessage">Location permission is required to start work and calculate travel distance.</p>
+        <button type="submit">Start Work</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Active Work</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Work Given Person</th>
+                <th>Vehicle</th>
+                <th>Start Time</th>
+                <th>Distance</th>
+                <th>Remarks</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries %}
+                <tr>
+                    <td data-label="Work Given Person">{{ entry.work_given_person }}</td>
+                    <td data-label="Vehicle">{{ entry.vehicle_type|capitalize }}</td>
+                    <td data-label="Start Time">{{ entry.next_start_time.strftime("%Y-%m-%d %H:%M") }}</td>
+                    <td data-label="Distance" id="activeDistance">{{ entry.distance_display }}</td>
+                    <td data-label="Remarks">{{ entry.remarks or "-" }}</td>
+                    <td data-label="Action">
+                        <form method="post" action="{{ url_for('end_work_entry', entry_id=entry.id) }}" class="inline-form">
+                            <button type="submit">End</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="6">No active work. Start a new work entry above.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if entries %}
+        <div class="map-card work-map-card">
+            <div class="map-card-header">
+                <h3>Live Satellite Track</h3>
+                <span id="mapStatus">Tracking</span>
+            </div>
+            <div id="liveWorkMap" class="live-map"></div>
+            <p id="mapUpdatedAt" class="map-note">Your route is saved automatically while this work is active.</p>
+        </div>
+    {% endif %}
+</section>
+
+{% if entries %}
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+{% endif %}
+<script>
+    window.DRIVER_BACKGROUND_LOCATION = {{ background_tracking|tojson }};
+
+    const workStartForm = document.getElementById("workStartForm");
+    const workGivenPerson = document.getElementById("workGivenPerson");
+    const otherPersonField = document.getElementById("otherPersonField");
+    const otherWorkGivenPerson = document.getElementById("otherWorkGivenPerson");
+    const startLat = document.getElementById("startLat");
+    const startLng = document.getElementById("startLng");
+    const startLocationMessage = document.getElementById("startLocationMessage");
+    let startLocationRequested = false;
+
+    function toggleOtherPersonField() {
+        const showOther = workGivenPerson.value === "Other";
+        otherPersonField.hidden = !showOther;
+        otherWorkGivenPerson.required = showOther;
+        if (!showOther) {
+            otherWorkGivenPerson.value = "";
+        }
+    }
+
+    workGivenPerson.addEventListener("change", toggleOtherPersonField);
+    toggleOtherPersonField();
+
+    function setStartLocationMessage(message, state) {
+        startLocationMessage.textContent = message;
+        startLocationMessage.dataset.state = state;
+    }
+
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                startLat.value = position.coords.latitude;
+                startLng.value = position.coords.longitude;
+                setStartLocationMessage("Location ready. Travel distance will be calculated automatically.", "success");
+            },
+            function () {
+                setStartLocationMessage("Please allow location permission before starting work.", "error");
+            },
+            {
+                enableHighAccuracy: true,
+                maximumAge: 15000,
+                timeout: 10000
+            }
+        );
+    } else {
+        setStartLocationMessage("Location is not available in this browser.", "error");
+    }
+
+    workStartForm.addEventListener("submit", function (event) {
+        if (startLocationRequested || startLat.value) {
+            return;
+        }
+
+        if (!("geolocation" in navigator)) {
+            setStartLocationMessage("Location is not available in this browser.", "error");
+            event.preventDefault();
+            return;
+        }
+
+        event.preventDefault();
+        startLocationRequested = true;
+        setStartLocationMessage("Please allow location permission to start work.", "pending");
+
+        navigator.geolocation.getCurrentPosition(
+            function (position) {
+                startLat.value = position.coords.latitude;
+                startLng.value = position.coords.longitude;
+                setStartLocationMessage("Location captured. Starting work...", "success");
+                workStartForm.submit();
+            },
+            function () {
+                setStartLocationMessage("Please allow location permission before starting work.", "error");
+                startLocationRequested = false;
+            },
+            {
+                enableHighAccuracy: true,
+                maximumAge: 0,
+                timeout: 10000
+            }
+        );
+    });
+
+    const hasActiveWork = {{ 'true' if entries else 'false' }};
+    const activeRoute = {{ active_route|tojson }};
+    const activeDistance = document.getElementById("activeDistance");
+    let liveWorkMap = null;
+    let liveMarker = null;
+    let livePolyline = null;
+    let routePoints = activeRoute.map((point) => [point.lat, point.lng]);
+
+    if (hasActiveWork && routePoints.length && window.L) {
+        const latestPoint = routePoints[routePoints.length - 1];
+        liveWorkMap = L.map("liveWorkMap").setView(latestPoint, 16);
+        const satelliteTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+        const roadTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}";
+        const labelTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+        L.tileLayer(satelliteTiles, {
+            maxZoom: 19,
+            attribution: "Tiles &copy; Esri"
+        }).addTo(liveWorkMap);
+        L.tileLayer(roadTiles, {
+            maxZoom: 19,
+            attribution: "Roads &copy; Esri"
+        }).addTo(liveWorkMap);
+        L.tileLayer(labelTiles, {
+            maxZoom: 19,
+            attribution: "Labels &copy; Esri"
+        }).addTo(liveWorkMap);
+        livePolyline = L.polyline(routePoints, { color: "#f59e0b", weight: 5 }).addTo(liveWorkMap);
+        liveMarker = L.marker(latestPoint).addTo(liveWorkMap);
+        liveWorkMap.fitBounds(livePolyline.getBounds(), { maxZoom: 17, padding: [24, 24] });
+    }
+
+    async function sendLocation(position) {
+        const response = await fetch("{{ url_for('update_location') }}", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+                accuracy: position.coords.accuracy
+            })
+        });
+        const result = await response.json();
+        if (result.ok && activeDistance) {
+            activeDistance.textContent = `${Number(result.distance_km).toFixed(2)} km`;
+        }
+
+        if (liveWorkMap && liveMarker && livePolyline) {
+            const latLng = [position.coords.latitude, position.coords.longitude];
+            routePoints.push(latLng);
+            liveMarker.setLatLng(latLng);
+            livePolyline.setLatLngs(routePoints);
+            liveWorkMap.setView(latLng, 16);
+        }
+    }
+
+    if (hasActiveWork && "geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(sendLocation);
+        navigator.geolocation.watchPosition(sendLocation, null, {
+            enableHighAccuracy: true,
+            maximumAge: 15000,
+            timeout: 10000
+        });
+    }
+</script>
+{% endblock %}
