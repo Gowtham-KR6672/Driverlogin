@@ -38,7 +38,16 @@
         <input type="hidden" name="start_lat" id="startLat">
         <input type="hidden" name="start_lng" id="startLng">
         <p class="permission-note full" id="startLocationMessage">Location permission is required to start work and calculate travel distance.</p>
-        <button type="submit">Start Work</button>
+        <div class="swipe full" data-swipe data-form-id="workStartForm" data-label="Swipe to Start Work" data-confirmed-label="Starting…">
+            <div class="swipe-track">
+                <div class="swipe-fill"></div>
+                <span class="swipe-label">Swipe to Start Work</span>
+                <button class="swipe-thumb" type="button" aria-label="Swipe to start work">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+                </button>
+            </div>
+        </div>
+        <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">Start Work</button>
     </form>
 </section>
 
@@ -64,8 +73,17 @@
                     <td data-label="Distance" id="activeDistance">{{ entry.distance_display }}</td>
                     <td data-label="Remarks">{{ entry.remarks or "-" }}</td>
                     <td data-label="Action">
-                        <form method="post" action="{{ url_for('end_work_entry', entry_id=entry.id) }}" class="inline-form">
-                            <button type="submit">End</button>
+                        <form method="post" action="{{ url_for('end_work_entry', entry_id=entry.id) }}" class="inline-form" id="endWorkForm{{ entry.id }}">
+                            <div class="swipe swipe-end" data-swipe data-form-id="endWorkForm{{ entry.id }}" data-label="Swipe to End Work" data-confirmed-label="Ending…">
+                                <div class="swipe-track">
+                                    <div class="swipe-fill"></div>
+                                    <span class="swipe-label">Swipe to End Work</span>
+                                    <button class="swipe-thumb" type="button" aria-label="Swipe to end work">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">End</button>
                         </form>
                     </td>
                 </tr>
@@ -239,5 +257,114 @@
             timeout: 10000
         });
     }
+
+    function initSwipe(root) {
+        if (root.dataset.swipeReady === "1") {
+            return;
+        }
+        root.dataset.swipeReady = "1";
+
+        const track = root.querySelector(".swipe-track");
+        const fill = root.querySelector(".swipe-fill");
+        const thumb = root.querySelector(".swipe-thumb");
+        const label = root.querySelector(".swipe-label");
+        const form = document.getElementById(root.dataset.formId);
+        if (!track || !fill || !thumb || !form) {
+            return;
+        }
+
+        const originalLabel = root.dataset.label || label.textContent;
+        const confirmedLabel = root.dataset.confirmedLabel || "Loading…";
+        let dragging = false;
+        let startX = 0;
+        let position = 0;
+        let maxOffset = 0;
+        let confirmed = false;
+
+        function setOffset(value) {
+            position = value;
+            const clamped = Math.max(0, Math.min(maxOffset, value));
+            thumb.style.transform = "translateX(" + clamped + "px)";
+            fill.style.width = (clamped + thumb.offsetWidth) + "px";
+            const progress = maxOffset ? clamped / maxOffset : 0;
+            label.style.opacity = String(Math.max(0, 1 - progress * 1.4));
+        }
+
+        function reset(animate) {
+            thumb.style.transition = animate ? "transform 220ms ease" : "none";
+            fill.style.transition = animate ? "width 220ms ease" : "none";
+            label.style.transition = animate ? "opacity 220ms ease" : "none";
+            setOffset(0);
+            if (animate) {
+                window.setTimeout(function () {
+                    thumb.style.transition = "";
+                    fill.style.transition = "";
+                    label.style.transition = "";
+                }, 240);
+            }
+        }
+
+        function finish() {
+            confirmed = true;
+            thumb.style.transition = "transform 160ms ease";
+            fill.style.transition = "width 160ms ease";
+            label.style.transition = "opacity 160ms ease";
+            setOffset(maxOffset);
+            label.textContent = confirmedLabel;
+            label.style.opacity = "1";
+            root.classList.add("swipe-confirmed");
+            window.setTimeout(function () {
+                if (typeof form.requestSubmit === "function") {
+                    form.requestSubmit();
+                } else {
+                    form.submit();
+                }
+            }, 180);
+        }
+
+        function pointerDown(event) {
+            if (confirmed) return;
+            dragging = true;
+            startX = event.clientX;
+            maxOffset = track.clientWidth - thumb.offsetWidth - 6;
+            thumb.setPointerCapture(event.pointerId);
+            thumb.style.transition = "none";
+            fill.style.transition = "none";
+            label.style.transition = "none";
+        }
+
+        function pointerMove(event) {
+            if (!dragging) return;
+            setOffset(event.clientX - startX);
+        }
+
+        function pointerUp() {
+            if (!dragging) return;
+            dragging = false;
+            if (position >= maxOffset * 0.85) {
+                finish();
+            } else {
+                reset(true);
+            }
+        }
+
+        thumb.addEventListener("pointerdown", pointerDown);
+        thumb.addEventListener("pointermove", pointerMove);
+        thumb.addEventListener("pointerup", pointerUp);
+        thumb.addEventListener("pointercancel", pointerUp);
+        thumb.addEventListener("lostpointercapture", pointerUp);
+
+        label.textContent = originalLabel;
+        setOffset(0);
+
+        window.addEventListener("resize", function () {
+            if (!confirmed) {
+                maxOffset = track.clientWidth - thumb.offsetWidth - 6;
+                reset(false);
+            }
+        });
+    }
+
+    document.querySelectorAll("[data-swipe]").forEach(initSwipe);
 </script>
 {% endblock %}

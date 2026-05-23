@@ -189,10 +189,26 @@ def serialize_route_points(points):
     ]
 
 
+MAX_ACCEPTABLE_ACCURACY_M = 50.0
+MIN_SAVE_DISTANCE_M = 8.0
+MIN_COUNT_DISTANCE_M = 25.0
+FALLBACK_ACCURACY_M = 25.0
+
+
 def save_location_point(cur, entry, lat, lng, accuracy):
+    try:
+        accuracy_value = float(accuracy) if accuracy is not None else None
+    except (TypeError, ValueError):
+        accuracy_value = None
+
+    existing_distance = float(entry["distance_km"] or 0)
+
+    if accuracy_value is not None and accuracy_value > MAX_ACCEPTABLE_ACCURACY_M:
+        return existing_distance, 1
+
     cur.execute(
         """
-        SELECT lat, lng
+        SELECT lat, lng, accuracy
         FROM work_entry_locations
         WHERE work_entry_id = %s
         ORDER BY recorded_at DESC, id DESC
@@ -201,6 +217,7 @@ def save_location_point(cur, entry, lat, lng, accuracy):
         (entry["id"],),
     )
     previous_point = cur.fetchone()
+
     segment_km = 0
     if previous_point:
         segment_km = calculate_distance_km(
@@ -209,16 +226,27 @@ def save_location_point(cur, entry, lat, lng, accuracy):
             lat,
             lng,
         )
-        if segment_km < 0.01:
+        segment_m = segment_km * 1000
+
+        prev_accuracy = float(previous_point["accuracy"] or FALLBACK_ACCURACY_M)
+        this_accuracy = accuracy_value if accuracy_value is not None else FALLBACK_ACCURACY_M
+        accuracy_floor = (prev_accuracy + this_accuracy) / 2
+
+        save_threshold = max(MIN_SAVE_DISTANCE_M, accuracy_floor * 0.6)
+        if segment_m < save_threshold:
+            return existing_distance, 1
+
+        count_threshold = max(MIN_COUNT_DISTANCE_M, accuracy_floor)
+        if segment_m < count_threshold:
             segment_km = 0
 
-    distance_km = float(entry["distance_km"] or 0) + segment_km
+    distance_km = existing_distance + segment_km
     cur.execute(
         """
         INSERT INTO work_entry_locations (work_entry_id, lat, lng, accuracy)
         VALUES (%s, %s, %s, %s)
         """,
-        (entry["id"], lat, lng, accuracy),
+        (entry["id"], lat, lng, accuracy_value),
     )
     cur.execute(
         """

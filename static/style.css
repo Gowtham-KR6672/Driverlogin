@@ -1386,6 +1386,115 @@ tbody tr:last-child td {
     transition: all 0.2s;
 }
 
+.visually-hidden {
+    border: 0;
+    clip: rect(0 0 0 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    width: 1px;
+}
+
+.swipe {
+    margin-top: 14px;
+    width: 100%;
+}
+
+.swipe-track {
+    background: linear-gradient(135deg, rgba(11, 122, 117, 0.08), rgba(37, 99, 235, 0.06));
+    border: 1px solid rgba(11, 122, 117, 0.2);
+    border-radius: 999px;
+    height: 56px;
+    overflow: hidden;
+    position: relative;
+    touch-action: pan-y;
+    user-select: none;
+    width: 100%;
+}
+
+.swipe-fill {
+    background: linear-gradient(135deg, rgba(11, 122, 117, 0.85), rgba(37, 99, 235, 0.85));
+    border-radius: 999px;
+    height: 100%;
+    left: 0;
+    position: absolute;
+    top: 0;
+    width: 50px;
+    z-index: 1;
+}
+
+.swipe-label {
+    align-items: center;
+    color: #0b7a75;
+    display: flex;
+    font-size: 14px;
+    font-weight: 800;
+    height: 100%;
+    justify-content: center;
+    letter-spacing: 0.6px;
+    pointer-events: none;
+    position: absolute;
+    text-transform: uppercase;
+    top: 0;
+    width: 100%;
+    z-index: 2;
+}
+
+.swipe-thumb {
+    align-items: center;
+    background: #ffffff;
+    border: none;
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(11, 122, 117, 0.28);
+    color: #0b7a75;
+    cursor: grab;
+    display: flex;
+    height: 50px;
+    justify-content: center;
+    left: 3px;
+    padding: 0;
+    position: absolute;
+    top: 3px;
+    touch-action: none;
+    transform: translateX(0);
+    width: 60px;
+    z-index: 3;
+}
+
+.swipe-thumb:active {
+    cursor: grabbing;
+}
+
+.swipe-thumb svg {
+    height: 22px;
+    width: 22px;
+}
+
+.swipe-end .swipe-track {
+    background: linear-gradient(135deg, rgba(180, 35, 24, 0.08), rgba(245, 158, 11, 0.08));
+    border-color: rgba(180, 35, 24, 0.22);
+}
+
+.swipe-end .swipe-fill {
+    background: linear-gradient(135deg, rgba(180, 35, 24, 0.85), rgba(245, 158, 11, 0.85));
+}
+
+.swipe-end .swipe-label {
+    color: #b42318;
+}
+
+.swipe-end .swipe-thumb {
+    color: #b42318;
+    box-shadow: 0 4px 14px rgba(180, 35, 24, 0.28);
+}
+
+.swipe-confirmed .swipe-label {
+    color: #ffffff;
+    opacity: 1 !important;
+}
+
 .btn-primary {
     background: var(--primary);
     color: white;
