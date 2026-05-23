@@ -53,47 +53,36 @@
 
 <section class="panel">
     <h2>Active Work</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Work Given Person</th>
-                <th>Vehicle</th>
-                <th>Start Time</th>
-                <th>Distance</th>
-                <th>Remarks</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for entry in entries %}
-                <tr>
-                    <td data-label="Work Given Person">{{ entry.work_given_person }}</td>
-                    <td data-label="Vehicle">{{ entry.vehicle_type|capitalize }}</td>
-                    <td data-label="Start Time">{{ entry.next_start_time.strftime("%Y-%m-%d %H:%M") }}</td>
-                    <td data-label="Distance" id="activeDistance">{{ entry.distance_display }}</td>
-                    <td data-label="Remarks">{{ entry.remarks or "-" }}</td>
-                    <td data-label="Action">
-                        <form method="post" action="{{ url_for('end_work_entry', entry_id=entry.id) }}" class="inline-form" id="endWorkForm{{ entry.id }}">
-                            <div class="swipe swipe-end" data-swipe data-form-id="endWorkForm{{ entry.id }}" data-label="Swipe to End Work" data-confirmed-label="Ending…">
-                                <div class="swipe-track">
-                                    <div class="swipe-fill"></div>
-                                    <span class="swipe-label">Swipe to End Work</span>
-                                    <button class="swipe-thumb" type="button" aria-label="Swipe to end work">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
-                                    </button>
-                                </div>
-                            </div>
-                            <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">End</button>
-                        </form>
-                    </td>
-                </tr>
-            {% else %}
-                <tr>
-                    <td colspan="6">No active work. Start a new work entry above.</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    {% for entry in entries %}
+        <div class="work-active-card">
+            <dl class="work-active-grid">
+                <dt>Work Given Person</dt>
+                <dd>{{ entry.work_given_person }}</dd>
+                <dt>Vehicle</dt>
+                <dd>{{ entry.vehicle_type|capitalize }}</dd>
+                <dt>Start Time</dt>
+                <dd>{{ entry.next_start_time.strftime("%Y-%m-%d %H:%M") }}</dd>
+                <dt>Distance</dt>
+                <dd id="activeDistance">{{ entry.distance_display }}</dd>
+                <dt>Remarks</dt>
+                <dd>{{ entry.remarks or "-" }}</dd>
+            </dl>
+            <form method="post" action="{{ url_for('end_work_entry', entry_id=entry.id) }}" class="inline-form" id="endWorkForm{{ entry.id }}">
+                <div class="swipe swipe-end" data-swipe data-form-id="endWorkForm{{ entry.id }}" data-label="Swipe to End Work" data-confirmed-label="Ending…">
+                    <div class="swipe-track">
+                        <div class="swipe-fill"></div>
+                        <span class="swipe-label">Swipe to End Work</span>
+                        <button class="swipe-thumb" type="button" aria-label="Swipe to end work">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+                        </button>
+                    </div>
+                </div>
+                <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">End</button>
+            </form>
+        </div>
+    {% else %}
+        <p class="empty-state">No active work. Start a new work entry above.</p>
+    {% endfor %}
     {% if entries %}
         <div class="map-card work-map-card">
             <div class="map-card-header">
@@ -285,7 +274,7 @@
             position = value;
             const clamped = Math.max(0, Math.min(maxOffset, value));
             thumb.style.transform = "translateX(" + clamped + "px)";
-            fill.style.width = (clamped + thumb.offsetWidth) + "px";
+            fill.style.width = (clamped + thumb.offsetWidth + 8) + "px";
             const progress = maxOffset ? clamped / maxOffset : 0;
             label.style.opacity = String(Math.max(0, 1 - progress * 1.4));
         }
@@ -326,7 +315,7 @@
             if (confirmed) return;
             dragging = true;
             startX = event.clientX;
-            maxOffset = track.clientWidth - thumb.offsetWidth - 6;
+            maxOffset = track.clientWidth - thumb.offsetWidth - 8;
             thumb.setPointerCapture(event.pointerId);
             thumb.style.transition = "none";
             fill.style.transition = "none";
@@ -359,7 +348,7 @@
 
         window.addEventListener("resize", function () {
             if (!confirmed) {
-                maxOffset = track.clientWidth - thumb.offsetWidth - 6;
+                maxOffset = track.clientWidth - thumb.offsetWidth - 8;
                 reset(false);
             }
         });

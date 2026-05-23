@@ -1398,15 +1398,18 @@ tbody tr:last-child td {
 }
 
 .swipe {
+    display: block;
     margin-top: 14px;
+    max-width: 100%;
     width: 100%;
 }
 
 .swipe-track {
     background: linear-gradient(135deg, rgba(11, 122, 117, 0.08), rgba(37, 99, 235, 0.06));
     border: 1px solid rgba(11, 122, 117, 0.2);
-    border-radius: 999px;
-    height: 56px;
+    border-radius: 32px;
+    box-sizing: border-box;
+    height: 60px;
     overflow: hidden;
     position: relative;
     touch-action: pan-y;
@@ -1416,29 +1419,30 @@ tbody tr:last-child td {
 
 .swipe-fill {
     background: linear-gradient(135deg, rgba(11, 122, 117, 0.85), rgba(37, 99, 235, 0.85));
-    border-radius: 999px;
     height: 100%;
     left: 0;
     position: absolute;
     top: 0;
-    width: 50px;
+    width: 56px;
     z-index: 1;
 }
 
 .swipe-label {
     align-items: center;
+    bottom: 0;
     color: #0b7a75;
     display: flex;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 800;
-    height: 100%;
     justify-content: center;
-    letter-spacing: 0.6px;
+    left: 60px;
+    letter-spacing: 0.5px;
     pointer-events: none;
     position: absolute;
+    right: 18px;
+    text-align: center;
     text-transform: uppercase;
     top: 0;
-    width: 100%;
     z-index: 2;
 }
 
@@ -1446,20 +1450,20 @@ tbody tr:last-child td {
     align-items: center;
     background: #ffffff;
     border: none;
-    border-radius: 999px;
-    box-shadow: 0 4px 14px rgba(11, 122, 117, 0.28);
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
     color: #0b7a75;
     cursor: grab;
     display: flex;
-    height: 50px;
+    height: 52px;
     justify-content: center;
-    left: 3px;
+    left: 4px;
     padding: 0;
     position: absolute;
-    top: 3px;
+    top: 4px;
     touch-action: none;
     transform: translateX(0);
-    width: 60px;
+    width: 52px;
     z-index: 3;
 }
 
@@ -1487,12 +1491,44 @@ tbody tr:last-child td {
 
 .swipe-end .swipe-thumb {
     color: #b42318;
-    box-shadow: 0 4px 14px rgba(180, 35, 24, 0.28);
+    box-shadow: 0 2px 8px rgba(180, 35, 24, 0.28);
 }
 
 .swipe-confirmed .swipe-label {
     color: #ffffff;
     opacity: 1 !important;
+}
+
+.work-active-card {
+    background: linear-gradient(135deg, rgba(11, 122, 117, 0.05), rgba(245, 158, 11, 0.05));
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    margin-top: 16px;
+    overflow: hidden;
+    padding: 16px;
+}
+
+.work-active-grid {
+    display: grid;
+    gap: 10px 16px;
+    grid-template-columns: max-content 1fr;
+    margin-bottom: 16px;
+}
+
+.work-active-grid dt {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+}
+
+.work-active-grid dd {
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0;
+    word-break: break-word;
 }
 
 .btn-primary {
