@@ -7,7 +7,7 @@
 {% endblock %}
 
 {% block content %}
-<section class="panel">
+<section class="panel history-panel">
     <h2>History</h2>
 
     <form method="get" class="history-filter">
@@ -26,61 +26,81 @@
         </div>
     </form>
 
-    <div class="summary-row">
-        <div class="summary-box">
-            <span>Total Hours</span>
-            <strong>{{ total.display }}</strong>
-            <small>{{ total.hours }} hours</small>
+    <div class="history-summary">
+        <div class="history-summary-chip">
+            <div class="history-summary-icon history-icon-time">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+            </div>
+            <div>
+                <span class="history-summary-label">Total Hours</span>
+                <strong class="history-summary-value">{{ total.display }}</strong>
+                <small class="history-summary-sub">{{ total.hours }} hrs</small>
+            </div>
         </div>
-        <div class="summary-box">
-            <span>Completed Entries</span>
-            <strong>{{ entries|length }}</strong>
-            <small>
-                {% if from_date or to_date %}
-                    Selected date range
-                {% else %}
-                    All history
-                {% endif %}
-            </small>
+        <div class="history-summary-chip">
+            <div class="history-summary-icon history-icon-entries">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+            </div>
+            <div>
+                <span class="history-summary-label">Entries</span>
+                <strong class="history-summary-value">{{ entries|length }}</strong>
+                <small class="history-summary-sub">{% if from_date or to_date %}filtered{% else %}all time{% endif %}</small>
+            </div>
         </div>
     </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Work Given Person</th>
-                <th>Vehicle</th>
-                <th>Start Time</th>
-                <th>End Time</th>
-                <th>Total Time</th>
-                <th>Travel Distance</th>
-                <th>Remarks</th>
-                <th>Route Map</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for entry in entries %}
-                <tr>
-                    <td data-label="Work Given Person">{{ entry.work_given_person }}</td>
-                    <td data-label="Vehicle">{{ entry.vehicle_type|capitalize }}</td>
-                    <td data-label="Start Time">{{ entry.next_start_time.strftime("%Y-%m-%d %H:%M") }}</td>
-                    <td data-label="End Time">{{ entry.end_time.strftime("%Y-%m-%d %H:%M") }}</td>
-                    <td data-label="Total Time">{{ entry.duration }}</td>
-                    <td data-label="Travel Distance">{{ entry.distance_display }}</td>
-                    <td data-label="Remarks">{{ entry.remarks or "-" }}</td>
-                    <td data-label="Route Map">
-                        <div class="route-map-cell">
-                            <button type="button" class="route-map-expand" data-entry-id="{{ entry.id }}">View Route</button>
+    <div class="history-list">
+        {% for entry in entries %}
+            <article class="history-card">
+                <header class="history-card-head">
+                    <div class="history-card-date">
+                        <span class="history-date-day">{{ entry.end_time.strftime("%d") }}</span>
+                        <span class="history-date-mon">{{ entry.end_time.strftime("%b") }}</span>
+                    </div>
+                    <div class="history-card-title">
+                        <span class="history-card-person">{{ entry.work_given_person }}</span>
+                        <span class="history-card-time">{{ entry.next_start_time.strftime("%H:%M") }} <span class="history-arrow">→</span> {{ entry.end_time.strftime("%H:%M") }}</span>
+                    </div>
+                    <span class="history-vehicle-pill history-vehicle-{{ entry.vehicle_type }}">
+                        {% if entry.vehicle_type == "bike" %}
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="17" r="4"/><circle cx="18" cy="17" r="4"/><path d="M6 17l3-7 4 7 3-9h2"/></svg>
+                        {% else %}
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 14l1.5-5a2 2 0 0 1 2-1.5h7a2 2 0 0 1 2 1.5L19 14"/><rect x="3" y="14" width="18" height="5" rx="1.5"/><circle cx="7.5" cy="19" r="1.5"/><circle cx="16.5" cy="19" r="1.5"/></svg>
+                        {% endif %}
+                        {{ entry.vehicle_type|capitalize }}
+                    </span>
+                </header>
+
+                <div class="history-card-metrics">
+                    <div class="history-metric">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                        <div>
+                            <span class="history-metric-label">Duration</span>
+                            <strong class="history-metric-value">{{ entry.duration }}</strong>
                         </div>
-                    </td>
-                </tr>
-            {% else %}
-                <tr>
-                    <td colspan="8">No completed work history yet.</td>
-                </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                    </div>
+                    <div class="history-metric">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s-7-7.5-7-13a7 7 0 0 1 14 0c0 5.5-7 13-7 13z"/><circle cx="12" cy="9" r="2.5"/></svg>
+                        <div>
+                            <span class="history-metric-label">Distance</span>
+                            <strong class="history-metric-value">{{ entry.distance_display }}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                {% if entry.remarks %}
+                    <p class="history-card-remarks">"{{ entry.remarks }}"</p>
+                {% endif %}
+
+                <button type="button" class="history-route-btn route-map-expand" data-entry-id="{{ entry.id }}">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 4 15 6 21 4 21 18 15 20 9 18 3 20 3 6"/><line x1="9" y1="4" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="20"/></svg>
+                    View Route
+                </button>
+            </article>
+        {% else %}
+            <div class="history-empty">No completed work history yet.</div>
+        {% endfor %}
+    </div>
 </section>
 {% if entries %}
     <div class="map-modal" id="routeMapModal" aria-hidden="true">

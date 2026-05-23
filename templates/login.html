@@ -2,88 +2,100 @@
 
 {% block content %}
 <section class="login-screen">
-    <div class="login-hero">
-        <svg class="hero-scene" viewBox="0 0 320 220" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <div class="login-bg" aria-hidden="true">
+        <svg class="bg-pattern" viewBox="0 0 800 1200" preserveAspectRatio="xMidYMid slice">
             <defs>
-                <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#0b7a75"/>
-                    <stop offset="60%" stop-color="#0f8a89"/>
-                    <stop offset="100%" stop-color="#2563eb"/>
-                </linearGradient>
-                <linearGradient id="roadGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#1f2937"/>
-                    <stop offset="100%" stop-color="#0f172a"/>
-                </linearGradient>
-                <radialGradient id="horizonGlow" cx="50%" cy="60%" r="60%">
-                    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.32"/>
-                    <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+                <pattern id="mapGrid" x="0" y="0" width="56" height="56" patternUnits="userSpaceOnUse">
+                    <path d="M56 0H0v56" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                </pattern>
+                <radialGradient id="vignette" cx="50%" cy="50%" r="65%">
+                    <stop offset="0%" stop-color="rgba(0,0,0,0)"/>
+                    <stop offset="100%" stop-color="rgba(0,0,0,0.45)"/>
                 </radialGradient>
-                <linearGradient id="carBody" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stop-color="#fbbf24"/>
-                    <stop offset="100%" stop-color="#f59e0b"/>
-                </linearGradient>
             </defs>
 
-            <rect width="320" height="220" fill="url(#skyGrad)"/>
-            <ellipse cx="160" cy="130" rx="220" ry="50" fill="url(#horizonGlow)"/>
+            <rect width="800" height="1200" fill="url(#mapGrid)"/>
 
-            <g class="hero-clouds">
-                <ellipse class="cloud cloud-1" cx="30" cy="38" rx="22" ry="6" fill="rgba(255,255,255,0.35)"/>
-                <ellipse class="cloud cloud-2" cx="240" cy="28" rx="28" ry="5" fill="rgba(255,255,255,0.28)"/>
-                <ellipse class="cloud cloud-3" cx="120" cy="52" rx="16" ry="4" fill="rgba(255,255,255,0.22)"/>
+            <g class="contours" opacity="0.16">
+                <path d="M-20 140 Q200 90 420 150 T820 160" stroke="#ffffff" stroke-width="1.2" fill="none"/>
+                <path d="M-20 195 Q200 145 420 205 T820 215" stroke="#ffffff" stroke-width="1" fill="none"/>
+                <path d="M-20 250 Q200 200 420 260 T820 270" stroke="#ffffff" stroke-width="0.8" fill="none"/>
+                <path d="M-20 760 Q200 720 420 770 T820 780" stroke="#ffffff" stroke-width="1" fill="none"/>
+                <path d="M-20 820 Q200 780 420 830 T820 840" stroke="#ffffff" stroke-width="1.2" fill="none"/>
+                <path d="M-20 880 Q200 840 420 890 T820 900" stroke="#ffffff" stroke-width="0.8" fill="none"/>
             </g>
 
-            <g class="hero-grid" opacity="0.18">
-                <line x1="60" y1="125" x2="260" y2="125" stroke="#ffffff" stroke-width="0.4"/>
-                <line x1="40" y1="155" x2="280" y2="155" stroke="#ffffff" stroke-width="0.4"/>
-                <line x1="20" y1="185" x2="300" y2="185" stroke="#ffffff" stroke-width="0.5"/>
+            <g class="route-set">
+                <path class="route route-a" d="M40 200 Q220 120 420 240 T780 320" stroke="#fbbf24" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-dasharray="10 8"/>
+                <path class="route route-b" d="M50 540 Q260 460 500 580 T780 660" stroke="#22d3ee" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-dasharray="8 10"/>
+                <path class="route route-c" d="M30 900 Q240 820 480 940 T780 980" stroke="#f97316" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-dasharray="12 8"/>
+                <path class="route route-d" d="M120 80 Q300 200 540 140 T760 220" stroke="rgba(255,255,255,0.35)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-dasharray="6 10"/>
             </g>
 
-            <polygon points="60,220 260,220 200,125 120,125" fill="url(#roadGrad)"/>
-            <line x1="120" y1="125" x2="60" y2="220" stroke="#ffffff" stroke-width="1.2" opacity="0.45"/>
-            <line x1="200" y1="125" x2="260" y2="220" stroke="#ffffff" stroke-width="1.2" opacity="0.45"/>
-
-            <g class="road-dashes">
-                <rect class="dash dash-1" x="158" y="130" width="4" height="8" rx="1.5" fill="#fbbf24"/>
-                <rect class="dash dash-2" x="156" y="150" width="8" height="12" rx="2" fill="#fbbf24"/>
-                <rect class="dash dash-3" x="154" y="172" width="12" height="16" rx="2" fill="#fbbf24"/>
-                <rect class="dash dash-4" x="152" y="196" width="16" height="20" rx="2.5" fill="#fbbf24"/>
+            <g class="markers">
+                <g class="marker m-1" transform="translate(40 200)">
+                    <circle class="ring ring-1" r="6" fill="none" stroke="#fbbf24" stroke-width="1.6"/>
+                    <circle class="ring ring-2" r="6" fill="none" stroke="#fbbf24" stroke-width="1.6"/>
+                    <circle r="4.5" fill="#fbbf24"/>
+                    <circle r="1.6" fill="#0f172a"/>
+                </g>
+                <g class="marker m-2" transform="translate(780 320)">
+                    <circle class="ring ring-1" r="6" fill="none" stroke="#fbbf24" stroke-width="1.6"/>
+                    <circle r="4.5" fill="#fbbf24"/>
+                    <circle r="1.6" fill="#0f172a"/>
+                </g>
+                <g class="marker m-3" transform="translate(50 540)">
+                    <circle class="ring ring-1" r="6" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
+                    <circle class="ring ring-2" r="6" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
+                    <circle r="4.5" fill="#22d3ee"/>
+                    <circle r="1.6" fill="#0f172a"/>
+                </g>
+                <g class="marker m-4" transform="translate(780 660)">
+                    <circle class="ring ring-1" r="6" fill="none" stroke="#22d3ee" stroke-width="1.6"/>
+                    <circle r="4.5" fill="#22d3ee"/>
+                    <circle r="1.6" fill="#0f172a"/>
+                </g>
+                <g class="marker m-5" transform="translate(30 900)">
+                    <circle class="ring ring-1" r="6" fill="none" stroke="#f97316" stroke-width="1.6"/>
+                    <circle class="ring ring-2" r="6" fill="none" stroke="#f97316" stroke-width="1.6"/>
+                    <circle r="4.5" fill="#f97316"/>
+                    <circle r="1.6" fill="#0f172a"/>
+                </g>
+                <g class="marker m-6" transform="translate(780 980)">
+                    <circle class="ring ring-1" r="6" fill="none" stroke="#f97316" stroke-width="1.6"/>
+                    <circle r="4.5" fill="#f97316"/>
+                    <circle r="1.6" fill="#0f172a"/>
+                </g>
             </g>
 
-            <g class="hero-pin">
-                <circle class="pulse pulse-1" cx="160" cy="62" r="14" fill="#ef4444" opacity="0.35"/>
-                <circle class="pulse pulse-2" cx="160" cy="62" r="14" fill="#ef4444" opacity="0.3"/>
-                <path d="M160 46 L168 58 L160 76 L152 58 Z" fill="#ef4444"/>
-                <circle cx="160" cy="58" r="6" fill="#ffffff"/>
-                <circle cx="160" cy="58" r="3" fill="#ef4444"/>
+            <g class="radar" transform="translate(420 600)">
+                <circle class="radar-pulse rp-1" r="70" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/>
+                <circle class="radar-pulse rp-2" r="70" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/>
+                <circle class="radar-pulse rp-3" r="70" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/>
+                <circle r="6" fill="#ffffff"/>
+                <circle r="3" fill="#0b7a75"/>
             </g>
 
-            <g class="hero-signals">
-                <path class="signal signal-1" d="M180 84 Q188 78 194 84" stroke="#ffffff" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-                <path class="signal signal-2" d="M184 88 Q196 76 206 88" stroke="#ffffff" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-                <path class="signal signal-3" d="M188 92 Q204 74 218 92" stroke="#ffffff" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+            <g class="coords" font-family="monospace" font-size="11" font-weight="700">
+                <text class="coord coord-1" x="60" y="380" fill="rgba(255,255,255,0.55)">12.97° N · 77.59° E</text>
+                <text class="coord coord-2" x="500" y="500" fill="rgba(255,255,255,0.45)">13.08° N · 80.27° E</text>
+                <text class="coord coord-3" x="120" y="780" fill="rgba(255,255,255,0.5)">11.01° N · 76.96° E</text>
+                <text class="coord coord-4" x="460" y="1020" fill="rgba(255,255,255,0.42)">19.07° N · 72.87° E</text>
             </g>
 
-            <g class="hero-car" transform="translate(130, 170)">
-                <ellipse cx="30" cy="42" rx="28" ry="3.5" fill="rgba(0,0,0,0.32)"/>
-                <rect x="0" y="14" width="60" height="22" rx="6" fill="url(#carBody)"/>
-                <path d="M10 14 L18 4 H42 L50 14 Z" fill="url(#carBody)"/>
-                <rect x="14" y="6" width="32" height="9" rx="2" fill="rgba(15,23,42,0.55)"/>
-                <rect x="14" y="6" width="14" height="9" rx="2" fill="rgba(255,255,255,0.18)"/>
-                <circle cx="56" cy="20" r="2.4" fill="#fde68a"/>
-                <circle cx="4" cy="20" r="2" fill="#ef4444"/>
-                <circle cx="14" cy="38" r="6" fill="#1f2937"/>
-                <circle cx="14" cy="38" r="2.5" fill="#9ca3af"/>
-                <circle cx="46" cy="38" r="6" fill="#1f2937"/>
-                <circle cx="46" cy="38" r="2.5" fill="#9ca3af"/>
-            </g>
+            <rect width="800" height="1200" fill="url(#vignette)"/>
         </svg>
+    </div>
 
-        <div class="hero-text">
-            <span class="hero-tag">Driver Login</span>
-            <h1>Track every trip<br>with confidence</h1>
-            <p>Live location, distance and time captured automatically while you drive.</p>
+    <div class="login-intro">
+        <div class="login-logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s-7-7.5-7-13a7 7 0 0 1 14 0c0 5.5-7 13-7 13z"/>
+                <circle cx="12" cy="9" r="2.6"/>
+            </svg>
         </div>
+        <h1>Driver Login</h1>
+        <p>Sign in to start tracking your trips</p>
     </div>
 
     <div class="login-card">
