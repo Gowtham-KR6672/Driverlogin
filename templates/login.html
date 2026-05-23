@@ -1,22 +1,123 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="panel narrow">
-    <h2>Login</h2>
-    <form method="post" id="loginForm">
-        <label>
-            Username
-            <input type="text" name="username" required autocomplete="username">
-        </label>
-        <label>
-            Password
-            <input type="password" name="password" required autocomplete="current-password">
-        </label>
-        <input type="hidden" name="login_lat" id="loginLat">
-        <input type="hidden" name="login_lng" id="loginLng">
-        <p class="permission-note" id="locationPermissionMessage">Location permission is required for user login.</p>
-        <button type="submit">Login</button>
-    </form>
+<section class="login-screen">
+    <div class="login-hero">
+        <svg class="hero-scene" viewBox="0 0 320 220" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <defs>
+                <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#0b7a75"/>
+                    <stop offset="60%" stop-color="#0f8a89"/>
+                    <stop offset="100%" stop-color="#2563eb"/>
+                </linearGradient>
+                <linearGradient id="roadGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#1f2937"/>
+                    <stop offset="100%" stop-color="#0f172a"/>
+                </linearGradient>
+                <radialGradient id="horizonGlow" cx="50%" cy="60%" r="60%">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.32"/>
+                    <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+                </radialGradient>
+                <linearGradient id="carBody" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#fbbf24"/>
+                    <stop offset="100%" stop-color="#f59e0b"/>
+                </linearGradient>
+            </defs>
+
+            <rect width="320" height="220" fill="url(#skyGrad)"/>
+            <ellipse cx="160" cy="130" rx="220" ry="50" fill="url(#horizonGlow)"/>
+
+            <g class="hero-clouds">
+                <ellipse class="cloud cloud-1" cx="30" cy="38" rx="22" ry="6" fill="rgba(255,255,255,0.35)"/>
+                <ellipse class="cloud cloud-2" cx="240" cy="28" rx="28" ry="5" fill="rgba(255,255,255,0.28)"/>
+                <ellipse class="cloud cloud-3" cx="120" cy="52" rx="16" ry="4" fill="rgba(255,255,255,0.22)"/>
+            </g>
+
+            <g class="hero-grid" opacity="0.18">
+                <line x1="60" y1="125" x2="260" y2="125" stroke="#ffffff" stroke-width="0.4"/>
+                <line x1="40" y1="155" x2="280" y2="155" stroke="#ffffff" stroke-width="0.4"/>
+                <line x1="20" y1="185" x2="300" y2="185" stroke="#ffffff" stroke-width="0.5"/>
+            </g>
+
+            <polygon points="60,220 260,220 200,125 120,125" fill="url(#roadGrad)"/>
+            <line x1="120" y1="125" x2="60" y2="220" stroke="#ffffff" stroke-width="1.2" opacity="0.45"/>
+            <line x1="200" y1="125" x2="260" y2="220" stroke="#ffffff" stroke-width="1.2" opacity="0.45"/>
+
+            <g class="road-dashes">
+                <rect class="dash dash-1" x="158" y="130" width="4" height="8" rx="1.5" fill="#fbbf24"/>
+                <rect class="dash dash-2" x="156" y="150" width="8" height="12" rx="2" fill="#fbbf24"/>
+                <rect class="dash dash-3" x="154" y="172" width="12" height="16" rx="2" fill="#fbbf24"/>
+                <rect class="dash dash-4" x="152" y="196" width="16" height="20" rx="2.5" fill="#fbbf24"/>
+            </g>
+
+            <g class="hero-pin">
+                <circle class="pulse pulse-1" cx="160" cy="62" r="14" fill="#ef4444" opacity="0.35"/>
+                <circle class="pulse pulse-2" cx="160" cy="62" r="14" fill="#ef4444" opacity="0.3"/>
+                <path d="M160 46 L168 58 L160 76 L152 58 Z" fill="#ef4444"/>
+                <circle cx="160" cy="58" r="6" fill="#ffffff"/>
+                <circle cx="160" cy="58" r="3" fill="#ef4444"/>
+            </g>
+
+            <g class="hero-signals">
+                <path class="signal signal-1" d="M180 84 Q188 78 194 84" stroke="#ffffff" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+                <path class="signal signal-2" d="M184 88 Q196 76 206 88" stroke="#ffffff" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+                <path class="signal signal-3" d="M188 92 Q204 74 218 92" stroke="#ffffff" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+            </g>
+
+            <g class="hero-car" transform="translate(130, 170)">
+                <ellipse cx="30" cy="42" rx="28" ry="3.5" fill="rgba(0,0,0,0.32)"/>
+                <rect x="0" y="14" width="60" height="22" rx="6" fill="url(#carBody)"/>
+                <path d="M10 14 L18 4 H42 L50 14 Z" fill="url(#carBody)"/>
+                <rect x="14" y="6" width="32" height="9" rx="2" fill="rgba(15,23,42,0.55)"/>
+                <rect x="14" y="6" width="14" height="9" rx="2" fill="rgba(255,255,255,0.18)"/>
+                <circle cx="56" cy="20" r="2.4" fill="#fde68a"/>
+                <circle cx="4" cy="20" r="2" fill="#ef4444"/>
+                <circle cx="14" cy="38" r="6" fill="#1f2937"/>
+                <circle cx="14" cy="38" r="2.5" fill="#9ca3af"/>
+                <circle cx="46" cy="38" r="6" fill="#1f2937"/>
+                <circle cx="46" cy="38" r="2.5" fill="#9ca3af"/>
+            </g>
+        </svg>
+
+        <div class="hero-text">
+            <span class="hero-tag">Driver Login</span>
+            <h1>Track every trip<br>with confidence</h1>
+            <p>Live location, distance and time captured automatically while you drive.</p>
+        </div>
+    </div>
+
+    <div class="login-card">
+        <form method="post" id="loginForm" class="login-form">
+            <label class="login-field">
+                <span class="login-field-label">Username</span>
+                <div class="login-field-input">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
+                    <input type="text" name="username" required autocomplete="username" placeholder="Enter your username">
+                </div>
+            </label>
+
+            <label class="login-field">
+                <span class="login-field-label">Password</span>
+                <div class="login-field-input">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></svg>
+                    <input type="password" name="password" required autocomplete="current-password" placeholder="Enter your password">
+                </div>
+            </label>
+
+            <input type="hidden" name="login_lat" id="loginLat">
+            <input type="hidden" name="login_lng" id="loginLng">
+
+            <div class="login-note" id="locationPermissionMessage" data-state="info">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><circle cx="12" cy="16" r="0.6" fill="currentColor"/></svg>
+                <span>Location permission is required for user login.</span>
+            </div>
+
+            <button type="submit" class="login-submit">
+                <span>Login</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+        </form>
+    </div>
 </section>
 
 <script>
@@ -24,6 +125,7 @@
     const loginLat = document.getElementById("loginLat");
     const loginLng = document.getElementById("loginLng");
     const locationPermissionMessage = document.getElementById("locationPermissionMessage");
+    const locationPermissionText = locationPermissionMessage.querySelector("span");
     const usernameInput = loginForm.querySelector('input[name="username"]');
     const passwordInput = loginForm.querySelector('input[name="password"]');
     const savedLoginKey = "driverLoginSavedCredentials";
@@ -60,7 +162,7 @@
     }
 
     function setPermissionMessage(message, state) {
-        locationPermissionMessage.textContent = message;
+        locationPermissionText.textContent = message;
         locationPermissionMessage.dataset.state = state;
     }
 
