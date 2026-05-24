@@ -2271,3 +2271,48 @@ tbody tr:last-child td {
     -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30%);
     mask-image: linear-gradient(to bottom, transparent 0%, black 30%);
 }
+
+.map-status-info {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.status-badge {
+    padding: 4px 8px;
+    background: var(--success);
+    color: white;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.accuracy-indicator {
+    padding: 4px 8px;
+    background: rgba(11, 122, 117, 0.12);
+    color: var(--primary);
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.accuracy-excellent {
+    background: rgba(2, 122, 72, 0.15);
+    color: var(--success);
+}
+
+.accuracy-good {
+    background: rgba(11, 122, 117, 0.15);
+    color: var(--primary);
+}
+
+.accuracy-fair {
+    background: rgba(245, 158, 11, 0.15);
+    color: #d97706;
+}
+
+.accuracy-poor {
+    background: rgba(180, 35, 24, 0.15);
+    color: var(--danger);
+}

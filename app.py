@@ -189,10 +189,10 @@ def serialize_route_points(points):
     ]
 
 
-MAX_ACCEPTABLE_ACCURACY_M = 50.0
-MIN_SAVE_DISTANCE_M = 8.0
-MIN_COUNT_DISTANCE_M = 25.0
-FALLBACK_ACCURACY_M = 25.0
+MAX_ACCEPTABLE_ACCURACY_M = 20.0
+MIN_SAVE_DISTANCE_M = 3.0
+MIN_COUNT_DISTANCE_M = 15.0
+FALLBACK_ACCURACY_M = 15.0
 
 
 def save_location_point(cur, entry, lat, lng, accuracy):

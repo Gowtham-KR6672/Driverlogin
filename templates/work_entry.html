@@ -87,7 +87,10 @@
         <div class="map-card work-map-card">
             <div class="map-card-header">
                 <h3>Live Satellite Track</h3>
-                <span id="mapStatus">Tracking</span>
+                <div class="map-status-info">
+                    <span id="mapStatus" class="status-badge">Tracking</span>
+                    <span id="mapAccuracy" class="accuracy-indicator" style="display: none;"></span>
+                </div>
             </div>
             <div id="liveWorkMap" class="live-map"></div>
             <p id="mapUpdatedAt" class="map-note">Your route is saved automatically while this work is active.</p>
@@ -212,16 +215,62 @@
         liveWorkMap.fitBounds(livePolyline.getBounds(), { maxZoom: 17, padding: [24, 24] });
     }
 
+    function calculateDistance(lat1, lng1, lat2, lng2) {
+        const R = 6371000;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLng/2) * Math.sin(dLng/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+    }
+
+    let lastAcceptedLocation = null;
+
     async function sendLocation(position) {
+        const accuracy = position.coords.accuracy;
+        const currentLat = position.coords.latitude;
+        const currentLng = position.coords.longitude;
+
+        if (lastAcceptedLocation) {
+            const distance = calculateDistance(lastAcceptedLocation.lat, lastAcceptedLocation.lng, currentLat, currentLng);
+            const minDistance = Math.max(3, accuracy * 0.5);
+            if (distance < minDistance) {
+                return;
+            }
+        }
+
+        lastAcceptedLocation = { lat: currentLat, lng: currentLng };
+
+        const accuracyIndicator = document.getElementById("mapAccuracy");
+
+        let accuracyStatus = "🟢 Excellent";
+        let accuracyClass = "accuracy-excellent";
+        if (accuracy > 30) {
+            accuracyStatus = "🟡 Poor";
+            accuracyClass = "accuracy-poor";
+        } else if (accuracy > 15) {
+            accuracyStatus = "🟡 Fair";
+            accuracyClass = "accuracy-fair";
+        } else if (accuracy > 10) {
+            accuracyStatus = "🟢 Good";
+            accuracyClass = "accuracy-good";
+        }
+
+        accuracyIndicator.textContent = accuracyStatus;
+        accuracyIndicator.className = `accuracy-indicator ${accuracyClass}`;
+        accuracyIndicator.style.display = "inline-block";
+
         const response = await fetch("{{ url_for('update_location') }}", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                lat: position.coords.latitude,
-                lng: position.coords.longitude,
-                accuracy: position.coords.accuracy
+                lat: currentLat,
+                lng: currentLng,
+                accuracy: accuracy
             })
         });
         const result = await response.json();
@@ -230,7 +279,7 @@
         }
 
         if (liveWorkMap && liveMarker && livePolyline) {
-            const latLng = [position.coords.latitude, position.coords.longitude];
+            const latLng = [currentLat, currentLng];
             routePoints.push(latLng);
             liveMarker.setLatLng(latLng);
             livePolyline.setLatLngs(routePoints);
@@ -242,8 +291,8 @@
         navigator.geolocation.getCurrentPosition(sendLocation);
         navigator.geolocation.watchPosition(sendLocation, null, {
             enableHighAccuracy: true,
-            maximumAge: 15000,
-            timeout: 10000
+            maximumAge: 5000,
+            timeout: 15000
         });
     }
 
