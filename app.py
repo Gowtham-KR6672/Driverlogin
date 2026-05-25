@@ -193,6 +193,10 @@ MAX_ACCEPTABLE_ACCURACY_M = 20.0
 MIN_SAVE_DISTANCE_M = 3.0
 MIN_COUNT_DISTANCE_M = 15.0
 FALLBACK_ACCURACY_M = 15.0
+MAX_REASONABLE_SPEED_MPS = 45.0
+MAX_SHORT_INTERVAL_JUMP_M = 250.0
+SHORT_INTERVAL_SECONDS = 15.0
+MIN_SEGMENT_SECONDS = 1.0
 
 
 def save_location_point(cur, entry, lat, lng, accuracy):
@@ -208,7 +212,7 @@ def save_location_point(cur, entry, lat, lng, accuracy):
 
     cur.execute(
         """
-        SELECT lat, lng, accuracy
+        SELECT lat, lng, accuracy, recorded_at
         FROM work_entry_locations
         WHERE work_entry_id = %s
         ORDER BY recorded_at DESC, id DESC
@@ -217,6 +221,13 @@ def save_location_point(cur, entry, lat, lng, accuracy):
         (entry["id"],),
     )
     previous_point = cur.fetchone()
+    if not previous_point and entry.get("current_lat") is not None and entry.get("current_lng") is not None:
+        previous_point = {
+            "lat": entry["current_lat"],
+            "lng": entry["current_lng"],
+            "accuracy": accuracy_value,
+            "recorded_at": entry.get("location_updated_at") or entry.get("next_start_time"),
+        }
 
     segment_km = 0
     if previous_point:
@@ -227,6 +238,19 @@ def save_location_point(cur, entry, lat, lng, accuracy):
             lng,
         )
         segment_m = segment_km * 1000
+        previous_recorded_at = previous_point.get("recorded_at")
+        if previous_recorded_at:
+            elapsed_seconds = max(
+                MIN_SEGMENT_SECONDS,
+                (datetime.now(previous_recorded_at.tzinfo) - previous_recorded_at).total_seconds(),
+            )
+            speed_mps = segment_m / elapsed_seconds
+
+            if (
+                speed_mps > MAX_REASONABLE_SPEED_MPS
+                or (elapsed_seconds <= SHORT_INTERVAL_SECONDS and segment_m > MAX_SHORT_INTERVAL_JUMP_M)
+            ):
+                return existing_distance, 1
 
         prev_accuracy = float(previous_point["accuracy"] or FALLBACK_ACCURACY_M)
         this_accuracy = accuracy_value if accuracy_value is not None else FALLBACK_ACCURACY_M
@@ -1366,7 +1390,7 @@ def update_location():
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, distance_km
+                SELECT id, distance_km, current_lat, current_lng, location_updated_at, next_start_time
                 FROM work_entries
                 WHERE user_id = %s AND end_time IS NULL
                 ORDER BY created_at DESC
@@ -1411,7 +1435,7 @@ def background_location_update():
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, distance_km
+                SELECT id, distance_km, current_lat, current_lng, location_updated_at, next_start_time
                 FROM work_entries
                 WHERE tracking_token = %s AND end_time IS NULL
                 LIMIT 1

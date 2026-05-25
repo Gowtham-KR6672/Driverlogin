@@ -226,22 +226,35 @@
         return R * c;
     }
 
+    const maxAcceptableAccuracy = 20;
+    const maxReasonableSpeedMps = 45;
+    const maxShortIntervalJumpM = 250;
+    const shortIntervalSeconds = 15;
     let lastAcceptedLocation = null;
 
     async function sendLocation(position) {
         const accuracy = position.coords.accuracy;
         const currentLat = position.coords.latitude;
         const currentLng = position.coords.longitude;
+        const currentTime = position.timestamp || Date.now();
+
+        if (accuracy && accuracy > maxAcceptableAccuracy) {
+            return;
+        }
 
         if (lastAcceptedLocation) {
             const distance = calculateDistance(lastAcceptedLocation.lat, lastAcceptedLocation.lng, currentLat, currentLng);
+            const elapsedSeconds = Math.max(1, (currentTime - lastAcceptedLocation.timestamp) / 1000);
+            const speedMps = distance / elapsedSeconds;
+            if (speedMps > maxReasonableSpeedMps || (elapsedSeconds <= shortIntervalSeconds && distance > maxShortIntervalJumpM)) {
+                return;
+            }
+
             const minDistance = Math.max(3, accuracy * 0.5);
             if (distance < minDistance) {
                 return;
             }
         }
-
-        lastAcceptedLocation = { lat: currentLat, lng: currentLng };
 
         const accuracyIndicator = document.getElementById("mapAccuracy");
 
@@ -275,10 +288,11 @@
         });
         const result = await response.json();
         if (result.ok && activeDistance) {
+            lastAcceptedLocation = { lat: currentLat, lng: currentLng, timestamp: currentTime };
             activeDistance.textContent = `${Number(result.distance_km).toFixed(2)} km`;
         }
 
-        if (liveWorkMap && liveMarker && livePolyline) {
+        if (result.ok && liveWorkMap && liveMarker && livePolyline) {
             const latLng = [currentLat, currentLng];
             routePoints.push(latLng);
             liveMarker.setLatLng(latLng);
