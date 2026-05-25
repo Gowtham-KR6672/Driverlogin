@@ -749,6 +749,21 @@ button:active {
     width: 100%;
 }
 
+.route-endpoint-marker span {
+    align-items: center;
+    border: 2px solid #ffffff;
+    border-radius: 999px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+    color: #ffffff;
+    display: flex;
+    font-size: 13px;
+    font-weight: 900;
+    height: 28px;
+    justify-content: center;
+    line-height: 1;
+    width: 28px;
+}
+
 .map-note {
     color: var(--muted);
     font-size: 13px;

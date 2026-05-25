@@ -151,6 +151,16 @@
                 }
             }
 
+            function routeEndpointIcon(color, label) {
+                return L.divIcon({
+                    className: "route-endpoint-marker",
+                    html: `<span style="background:${color};">${label}</span>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15],
+                    popupAnchor: [0, -15]
+                });
+            }
+
             async function getRoute(entryId) {
                 if (routeCache.has(entryId)) {
                     return routeCache.get(entryId);
@@ -191,8 +201,8 @@
                 addSatelliteLayers(expandedMap, true);
                 const points = result.route.map((point) => [point.lat, point.lng]);
                 const line = L.polyline(points, { color: "#f59e0b", weight: 6 }).addTo(expandedMap);
-                L.marker(points[0]).addTo(expandedMap).bindPopup("Start");
-                L.marker(points[points.length - 1]).addTo(expandedMap).bindPopup("End");
+                L.marker(points[0], { icon: routeEndpointIcon("#16a34a", "S") }).addTo(expandedMap).bindPopup("Start");
+                L.marker(points[points.length - 1], { icon: routeEndpointIcon("#dc2626", "E") }).addTo(expandedMap).bindPopup("End");
                 setTimeout(function () {
                     expandedMap.invalidateSize();
                     fitRoute(expandedMap, line, points);

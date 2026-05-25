@@ -260,7 +260,9 @@
             let leafletReady = null;
             let liveMap = null;
             let marker = null;
+            let startMarker = null;
             let routeLine = null;
+            let hasCenteredLiveMap = false;
 
             const satelliteTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
             const roadTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}";
@@ -313,7 +315,8 @@
 
                 if (!liveMap) {
                     liveMap = L.map("liveMap").setView([defaultLocation.lat, defaultLocation.lng], location ? 15 : 5);
-                    marker = L.marker([defaultLocation.lat, defaultLocation.lng]).addTo(liveMap);
+                    startMarker = L.marker([defaultLocation.lat, defaultLocation.lng], { icon: routeEndpointIcon("#16a34a", "S") }).addTo(liveMap);
+                    marker = L.marker([defaultLocation.lat, defaultLocation.lng], { icon: routeEndpointIcon("#dc2626", "L") }).addTo(liveMap);
                     routeLine = L.polyline([], { color: "#f59e0b", weight: 5 }).addTo(liveMap);
                     addSatelliteLayers(liveMap, true);
                 }
@@ -333,12 +336,22 @@
                 await initLiveMap(location);
                 const latLng = [location.lat, location.lng];
                 const routePoints = (location.route || []).map((point) => [point.lat, point.lng]);
+                if (!routePoints.length) {
+                    routePoints.push(latLng);
+                }
+                const startLatLng = routePoints[0];
+                const latestLatLng = routePoints[routePoints.length - 1] || latLng;
+                startMarker.setLatLng(startLatLng);
                 marker.setLatLng(latLng);
                 routeLine.setLatLngs(routePoints);
-                if (routePoints.length > 1) {
+                if (!hasCenteredLiveMap && routePoints.length > 1) {
                     liveMap.fitBounds(routeLine.getBounds(), { maxZoom: 17, padding: [24, 24] });
+                    hasCenteredLiveMap = true;
+                } else if (!hasCenteredLiveMap) {
+                    liveMap.setView(latLng, 16);
+                    hasCenteredLiveMap = true;
                 } else {
-                    liveMap.setView(latLng, 15);
+                    liveMap.panTo(latestLatLng, { animate: true, duration: 0.8 });
                 }
                 mapStatus.textContent = "Live";
                 mapDistance.textContent = `Travel distance: ${Number(location.distance_km || 0).toFixed(2)} km`;
@@ -358,20 +371,18 @@
             }
 
             async function refreshLocation() {
-                const response = await fetch(`/admin/users/${selectedUserId}/location`);
-                const location = await response.json();
-                if (location.has_location || liveMap) {
+                try {
+                    const response = await fetch(`/admin/users/${selectedUserId}/location`, { cache: "no-store" });
+                    const location = await response.json();
                     renderLocation(location);
-                } else {
-                    mapStatus.textContent = "No active location";
-                    mapDistance.textContent = "Travel distance: 0.00 km";
-                    mapUpdatedAt.textContent = "The user must start work and allow location access.";
+                } catch (error) {
+                    mapStatus.textContent = "Reconnect";
+                    mapUpdatedAt.textContent = "Waiting for live location refresh...";
                 }
             }
 
-            if (initialLocation) {
-                setInterval(refreshLocation, 10000);
-            }
+            refreshLocation();
+            setInterval(refreshLocation, 3000);
 
             const routeCache = new Map();
             const routeMapModal = document.getElementById("routeMapModal");
@@ -384,6 +395,16 @@
                 } else {
                     map.setView(points[0], 17);
                 }
+            }
+
+            function routeEndpointIcon(color, label) {
+                return L.divIcon({
+                    className: "route-endpoint-marker",
+                    html: `<span style="background:${color};">${label}</span>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15],
+                    popupAnchor: [0, -15]
+                });
             }
 
             async function getRoute(entryId) {
@@ -427,8 +448,8 @@
                 addSatelliteLayers(expandedMap, true);
                 const points = result.route.map((point) => [point.lat, point.lng]);
                 const line = L.polyline(points, { color: "#f59e0b", weight: 6 }).addTo(expandedMap);
-                L.marker(points[0]).addTo(expandedMap).bindPopup("Start");
-                L.marker(points[points.length - 1]).addTo(expandedMap).bindPopup("End");
+                L.marker(points[0], { icon: routeEndpointIcon("#16a34a", "S") }).addTo(expandedMap).bindPopup("Start");
+                L.marker(points[points.length - 1], { icon: routeEndpointIcon("#dc2626", "E") }).addTo(expandedMap).bindPopup("End");
                 setTimeout(function () {
                     expandedMap.invalidateSize();
                     fitRoute(expandedMap, line, points);
