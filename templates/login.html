@@ -1,110 +1,548 @@
-{% extends "base.html" %}
-
-{% block head_extra %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#06305e">
+<title>Driver Login</title>
 <style>
-    .topbar { display: none !important; }
-    html body { background: #0e5648 !important; }
-    html body .container { max-width: none !important; padding: 0 !important; margin: 0 !important; }
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #06305e;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    .travel-login-screen {
+        position: relative;
+        isolation: isolate;
+        height: 100vh;
+        height: 100svh;
+        min-height: 0;
+        width: min(100vw, 430px);
+        margin: 0 auto;
+        overflow: hidden;
+        color: #092a59;
+        background: linear-gradient(180deg, rgba(128, 201, 244, 0.78) 0%, rgba(222, 241, 255, 0.82) 47%, rgba(6, 49, 96, 0.98) 78%), #0a477d;
+        box-shadow: 0 0 42px rgba(0, 0, 0, 0.28);
+        font-family: Arial, "Segoe UI", sans-serif;
+    }
+
+    .travel-scene {
+        position: absolute;
+        inset: 0 0 auto 0;
+        height: 70svh;
+        min-height: 470px;
+        overflow: hidden;
+        z-index: 0;
+    }
+
+    .travel-sky {
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 78% 12%, rgba(255, 255, 255, 0.92) 0 4%, transparent 15%), linear-gradient(180deg, #72c0ef 0%, #dff4ff 48%, #cfe8f6 100%);
+    }
+
+    .travel-cloud {
+        position: absolute;
+        width: 94px;
+        height: 27px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.82);
+        animation: travelCloudDrift 15s ease-in-out infinite alternate;
+    }
+
+    .travel-cloud::before,
+    .travel-cloud::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        background: inherit;
+    }
+
+    .travel-cloud::before { width: 44px; height: 44px; left: 15px; bottom: 5px; }
+    .travel-cloud::after { width: 34px; height: 34px; right: 15px; bottom: 5px; }
+    .travel-cloud-one { top: 44px; right: 18px; }
+    .travel-cloud-two { top: 136px; left: 72px; width: 70px; transform: scale(0.8); opacity: 0.65; animation-delay: -4s; }
+
+    .travel-mountain {
+        position: absolute;
+        right: -82px;
+        bottom: 174px;
+        width: 330px;
+        height: 210px;
+        clip-path: polygon(0 100%, 20% 56%, 34% 72%, 48% 34%, 62% 63%, 76% 22%, 100% 100%);
+    }
+
+    .travel-mountain-back {
+        right: -118px;
+        bottom: 201px;
+        background: linear-gradient(135deg, #d8f0ff 0 20%, #7eacd1 21% 45%, #517fa7 46% 100%);
+        opacity: 0.72;
+    }
+
+    .travel-mountain-front {
+        background: linear-gradient(135deg, #f7fcff 0 17%, #6d9cc4 18% 52%, #315f8e 53% 100%);
+    }
+
+    .travel-lake {
+        position: absolute;
+        right: -24px;
+        bottom: 118px;
+        width: 252px;
+        height: 108px;
+        border-radius: 60% 0 0 42%;
+        background: repeating-linear-gradient(172deg, rgba(255, 255, 255, 0.24) 0 2px, transparent 2px 18px), linear-gradient(135deg, #7dd1f7, #1f7db7 56%, #0a5a9b);
+        box-shadow: inset 0 14px 22px rgba(255, 255, 255, 0.24);
+    }
+
+    .travel-city {
+        position: absolute;
+        left: 0;
+        bottom: 128px;
+        width: 132px;
+        height: 126px;
+        opacity: 0.5;
+    }
+
+    .travel-city span {
+        position: absolute;
+        bottom: 0;
+        width: 16px;
+        border-radius: 3px 3px 0 0;
+        background: linear-gradient(180deg, rgba(222, 239, 252, 0.92), rgba(94, 135, 171, 0.72));
+    }
+
+    .travel-city span:nth-child(1) { left: 0; height: 42px; }
+    .travel-city span:nth-child(2) { left: 18px; height: 82px; width: 20px; }
+    .travel-city span:nth-child(3) { left: 43px; height: 118px; width: 17px; }
+    .travel-city span:nth-child(4) { left: 64px; height: 58px; width: 21px; }
+    .travel-city span:nth-child(5) { left: 90px; height: 96px; width: 18px; }
+    .travel-city span:nth-child(6) { left: 112px; height: 50px; width: 16px; }
+
+    .travel-road {
+        position: absolute;
+        left: -40px;
+        bottom: -64px;
+        width: 360px;
+        height: 312px;
+        transform: rotate(-8deg) skewX(-15deg);
+        transform-origin: bottom left;
+        clip-path: polygon(42% 0, 73% 0, 100% 100%, 0 100%);
+        background: linear-gradient(90deg, transparent 0 46%, rgba(255, 255, 255, 0.82) 46% 48%, transparent 48% 100%), linear-gradient(90deg, #1f2937, #515964 55%, #1f2937);
+        box-shadow: inset -22px 0 0 rgba(255, 255, 255, 0.16), inset 18px 0 0 rgba(255, 255, 255, 0.13);
+    }
+
+    .travel-lane {
+        position: absolute;
+        left: 47%;
+        width: 7px;
+        height: 36px;
+        border-radius: 99px;
+        background: #ffffff;
+        opacity: 0.92;
+        animation: travelLaneMove 1.8s linear infinite;
+    }
+
+    .travel-lane-one { top: 12%; }
+    .travel-lane-two { top: 39%; animation-delay: -0.6s; }
+    .travel-lane-three { top: 67%; animation-delay: -1.2s; }
+
+    .travel-car {
+        position: absolute;
+        left: 57px;
+        bottom: 80px;
+        width: 112px;
+        height: 47px;
+        border-radius: 22px 30px 12px 12px;
+        background: linear-gradient(180deg, #2469a8 0%, #0a3975 58%, #082b58 100%);
+        box-shadow: 0 14px 20px rgba(0, 18, 46, 0.28);
+        animation: travelCarRide 2.3s ease-in-out infinite;
+    }
+
+    .travel-car::before {
+        content: "";
+        position: absolute;
+        left: 20px;
+        top: -21px;
+        width: 61px;
+        height: 30px;
+        border-radius: 32px 38px 4px 4px;
+        background: linear-gradient(180deg, #1b5f9d, #0b3e7b);
+    }
+
+    .travel-car-window { position: absolute; left: 31px; top: -16px; width: 40px; height: 22px; border-radius: 25px 28px 4px 4px; background: linear-gradient(135deg, #caedff, #4f93c7); }
+    .travel-car-light { position: absolute; top: 19px; width: 13px; height: 6px; border-radius: 99px; background: #ff3b42; }
+    .travel-car-light-left { left: 8px; }
+    .travel-car-light-right { right: 8px; background: #ffcf5a; }
+    .travel-wheel { position: absolute; bottom: -8px; width: 20px; height: 20px; border-radius: 50%; border: 5px solid #101827; background: #8eb2d6; }
+    .travel-wheel-left { left: 20px; }
+    .travel-wheel-right { right: 20px; }
+
+    .travel-route {
+        position: absolute;
+        left: -13px;
+        top: 74px;
+        width: 84px !important;
+        height: 238px !important;
+        overflow: visible;
+    }
+
+    .travel-route path {
+        fill: none !important;
+        stroke: rgba(7, 52, 102, 0.72);
+        stroke-width: 2;
+        stroke-dasharray: 5 7;
+        animation: travelRouteDash 5s linear infinite;
+    }
+
+    .travel-route circle {
+        fill: #ffffff;
+        stroke: #0d4b89;
+        stroke-width: 2;
+    }
+
+    .travel-map-pin {
+        position: absolute;
+        width: 44px;
+        height: 44px;
+        border-radius: 50% 50% 50% 8px;
+        background: linear-gradient(180deg, #79c9ff, #2a91de);
+        transform: rotate(-45deg);
+        box-shadow: 0 12px 24px rgba(0, 69, 138, 0.24);
+        animation: travelPinFloat 2.6s ease-in-out infinite;
+    }
+
+    .travel-map-pin::before { content: ""; position: absolute; inset: 13px; border-radius: 50%; background: rgba(255, 255, 255, 0.92); }
+    .travel-map-pin::after { content: ""; position: absolute; left: -19px; top: -19px; width: 80px; height: 80px; border-radius: 50%; border: 2px solid rgba(134, 213, 255, 0.8); transform: rotate(45deg) scale(0.6); opacity: 0; animation: travelPinPulse 2.6s ease-out infinite; }
+    .travel-map-pin-left { left: 18px; top: 47px; width: 22px; height: 22px; background: #0d4b89; }
+    .travel-map-pin-left::before { inset: 7px; }
+    .travel-map-pin-left::after { display: none; }
+    .travel-map-pin-right { right: 57px; top: 279px; animation-delay: -0.9s; }
+
+    .travel-brand {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: clamp(58px, 13svh, 90px) 20px 0;
+        text-align: center;
+        color: #082a59;
+    }
+
+    .travel-logo-pin {
+        position: relative;
+        width: 72px;
+        height: 72px;
+        border-radius: 50% 50% 50% 12px;
+        transform: rotate(-45deg);
+        background: linear-gradient(180deg, #0b3f7f, #005eee);
+        box-shadow: 0 12px 22px rgba(0, 68, 160, 0.28);
+        animation: travelLogoFloat 3s ease-in-out infinite;
+    }
+
+    .travel-logo-pin::after {
+        content: "";
+        position: absolute;
+        left: 16px;
+        bottom: -15px;
+        width: 58px;
+        height: 18px;
+        border: 3px solid rgba(6, 49, 105, 0.8);
+        border-left-color: transparent;
+        border-top-color: transparent;
+        border-radius: 50%;
+        transform: rotate(45deg);
+    }
+
+    .travel-logo-pin svg {
+        position: absolute;
+        inset: 8px;
+        width: 56px !important;
+        height: 56px !important;
+        transform: rotate(45deg);
+        display: block;
+    }
+
+    .travel-brand h1 {
+        margin: 16px 0 5px;
+        font-size: clamp(25px, 7.2vw, 32px);
+        line-height: 1.05;
+        font-weight: 800;
+        letter-spacing: 0;
+        color: #072655;
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.36);
+    }
+
+    .travel-brand p {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+        font-size: 13px;
+        font-weight: 500;
+        color: rgba(8, 42, 89, 0.68);
+    }
+
+    .travel-brand p span { width: 26px; height: 1px; background: #176fe9; }
+
+    .travel-login-card {
+        position: absolute;
+        left: 18px;
+        right: 18px;
+        bottom: 18px;
+        z-index: 2;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 24px 20px 18px;
+        border: 1px solid rgba(215, 225, 240, 0.92);
+        border-radius: 17px;
+        background: rgba(255, 255, 255, 0.97);
+        box-shadow: 0 22px 42px rgba(4, 37, 80, 0.26);
+    }
+
+    .travel-card-heading { text-align: center; margin-bottom: 4px; }
+    .travel-card-heading h2 { margin: 0; color: #0a2c60; font-size: 18px; font-weight: 800; letter-spacing: 0; padding-left: 0; position: static; }
+    .travel-card-heading h2::before { display: none; }
+    .travel-card-heading p { margin: 6px 0 0; color: #7b879b; font-size: 12px; font-weight: 500; }
+    .travel-field { display: block; margin: 0; color: inherit; }
+
+    .travel-field-control {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 50px;
+        padding: 0 12px;
+        border: 1px solid #dce4ef;
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 4px 12px rgba(16, 71, 136, 0.05);
+        color: #0067ff;
+    }
+
+    .travel-field-control:focus-within { border-color: #006bff; box-shadow: 0 0 0 4px rgba(0, 107, 255, 0.1); }
+    .travel-field-control > svg { flex: 0 0 21px; width: 21px !important; height: 21px !important; display: block; }
+
+    .travel-field-control input {
+        flex: 1 1 auto;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: #0d2446;
+        font: 600 13px Arial, "Segoe UI", sans-serif;
+        padding: 0;
+        width: auto;
+    }
+
+    .travel-field-control input::placeholder { color: #929caf; font-weight: 600; }
+    .travel-password-toggle { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; color: #7b879b; background: transparent; box-shadow: none; cursor: pointer; }
+    .travel-password-toggle svg { width: 19px !important; height: 19px !important; display: block; }
+    .travel-forgot { align-self: flex-end; margin-top: -4px; color: #0066f5; font-size: 11px; font-weight: 700; text-decoration: none; }
+
+    .travel-submit {
+        width: 100%;
+        display: block;
+        min-height: 48px;
+        border: 0;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #006dff, #0053de);
+        color: #ffffff;
+        font: 700 15px Arial, "Segoe UI", sans-serif;
+        box-shadow: 0 10px 18px rgba(0, 83, 222, 0.3);
+        cursor: pointer;
+        padding: 0;
+    }
+
+    .travel-note {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 16px;
+        margin-top: -4px;
+        color: rgba(9, 42, 89, 0.56);
+        font-size: 10px;
+        line-height: 1.3;
+        text-align: center;
+    }
+
+    .travel-note svg { display: none; }
+    .travel-note[data-state="pending"] { color: #0b6bda; }
+    .travel-note[data-state="success"] { color: #0f8a51; }
+    .travel-note[data-state="error"] { color: #d92d20; }
+
+    @keyframes travelCloudDrift { from { transform: translateX(-8px); } to { transform: translateX(14px); } }
+    @keyframes travelLaneMove { from { transform: translateY(-58px) scaleY(0.65); opacity: 0; } 25% { opacity: 0.95; } to { transform: translateY(118px) scaleY(1.25); opacity: 0; } }
+    @keyframes travelCarRide { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-4px) rotate(-1deg); } }
+    @keyframes travelRouteDash { to { stroke-dashoffset: -48; } }
+    @keyframes travelPinPulse { 0% { opacity: 0.7; transform: rotate(45deg) scale(0.28); } 100% { opacity: 0; transform: rotate(45deg) scale(1); } }
+    @keyframes travelPinFloat { 0%, 100% { transform: rotate(-45deg) translateY(0); } 50% { transform: rotate(-45deg) translateY(-8px); } }
+    @keyframes travelLogoFloat { 0%, 100% { transform: rotate(-45deg) translateY(0); } 50% { transform: rotate(-45deg) translateY(-5px); } }
+
+    @media (max-height: 650px) {
+        .travel-brand { padding-top: 34px; }
+        .travel-logo-pin { width: 60px; height: 60px; }
+        .travel-logo-pin svg { width: 46px !important; height: 46px !important; inset: 7px; }
+        .travel-brand h1 { font-size: 24px; }
+        .travel-scene { height: 66svh; min-height: 415px; }
+        .travel-login-card { gap: 9px; padding: 18px 18px 14px; }
+        .travel-field-control, .travel-submit { min-height: 42px; }
+        .travel-card-heading p,
+        .travel-note { display: none; }
+    }
+
+    .travel-login-screen {
+        width: min(100vw, 430px);
+        background-image: url("/static/icons/Mobile_login.png");
+        background-size: cover;
+        background-position: center top;
+        background-repeat: no-repeat;
+    }
+
+    .travel-scene,
+    .travel-brand {
+        display: none;
+    }
+
+    .travel-login-card {
+        bottom: max(42px, calc(env(safe-area-inset-bottom) + 34px));
+    }
+
+    @media (min-width: 768px) {
+        .travel-login-screen {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            max-width: none;
+            height: 100vh;
+            height: 100svh;
+            margin: 0;
+            background-image: url("/static/icons/Desktop%20Login.png?v=2");
+            background-color: #eaf1f9;
+            background-size: 100% 100% !important;
+            background-position: center center !important;
+            background-repeat: no-repeat !important;
+        }
+
+        .travel-login-card {
+            left: 51.5vw;
+            right: auto;
+            top: 53vh;
+            bottom: auto;
+            width: min(490px, 28vw);
+            min-width: 420px;
+            transform: translate(-50%, -50%);
+            border-color: rgba(255, 255, 255, 0.34);
+            background: rgba(255, 255, 255, 0.16);
+            box-shadow: none;
+            backdrop-filter: blur(5px);
+        }
+
+        .travel-login-card .travel-card-heading h2 {
+            color: #ffffff;
+            text-shadow: 0 2px 8px rgba(0, 20, 50, 0.38);
+        }
+
+        .travel-login-card .travel-card-heading p,
+        .travel-login-card .travel-note {
+            color: rgba(255, 255, 255, 0.82);
+            text-shadow: 0 1px 5px rgba(0, 20, 50, 0.32);
+        }
+    }
 </style>
-{% endblock %}
-
-{% block content %}
-<section class="leaf-login-screen">
-    <div class="leaf-illustration">
-        <img src="{{ url_for('static', filename='leaf-bg.png') }}" alt="Tropical Leaves">
+</head>
+<body>
+<section class="travel-login-screen">
+    <div class="travel-scene" aria-hidden="true">
+        <div class="travel-sky"></div>
+        <div class="travel-cloud travel-cloud-one"></div>
+        <div class="travel-cloud travel-cloud-two"></div>
+        <div class="travel-city">
+            <span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div class="travel-mountain travel-mountain-back"></div>
+        <div class="travel-mountain travel-mountain-front"></div>
+        <div class="travel-lake"></div>
+        <div class="travel-road">
+            <span class="travel-lane travel-lane-one"></span>
+            <span class="travel-lane travel-lane-two"></span>
+            <span class="travel-lane travel-lane-three"></span>
+        </div>
+        <div class="travel-car">
+            <span class="travel-car-window"></span>
+            <span class="travel-car-light travel-car-light-left"></span>
+            <span class="travel-car-light travel-car-light-right"></span>
+            <span class="travel-wheel travel-wheel-left"></span>
+            <span class="travel-wheel travel-wheel-right"></span>
+        </div>
+        <svg class="travel-route" viewBox="0 0 120 320" preserveAspectRatio="none" width="84" height="238" fill="none">
+            <path d="M50 8 C20 35 78 54 42 86 S10 142 40 174 90 214 42 252 35 292 72 314" fill="none" />
+            <circle cx="50" cy="8" r="4" />
+            <circle cx="42" cy="86" r="3" />
+            <circle cx="40" cy="174" r="3" />
+            <circle cx="72" cy="314" r="4" />
+        </svg>
+        <div class="travel-map-pin travel-map-pin-left"></div>
+        <div class="travel-map-pin travel-map-pin-right"></div>
     </div>
 
-    <div class="leaf-header">
-        <h1>Driver Login</h1>
-    </div>
+    <header class="travel-brand">
+        <div class="travel-logo-pin" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="56" height="56">
+                <circle cx="32" cy="28" r="18" fill="#ffffff"/>
+                <circle cx="32" cy="28" r="12" fill="none" stroke="#08305f" stroke-width="5"/>
+                <circle cx="32" cy="28" r="4" fill="#08305f"/>
+                <path d="M22 31c4 7 16 7 20 0M32 16v12M20 26l12 2 12-2" fill="none" stroke="#08305f" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+        </div>
+        <h1>Drive. Track. Travel.</h1>
+        <p><span></span>Your Journey, Our Technology.<span></span></p>
+    </header>
 
-    <form method="post" id="loginForm" class="leaf-form">
-        <label class="leaf-field">
-            <div class="leaf-field-input">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
-                <input type="text" name="username" required autocomplete="username" placeholder="Username">
-            </div>
+    <form method="post" id="loginForm" class="travel-login-card">
+        <div class="travel-card-heading">
+            <h2>Welcome Back!</h2>
+            <p>Login to continue your journey</p>
+        </div>
+
+        <label class="travel-field">
+            <span class="travel-field-control">
+                <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
+                <input type="text" name="username" required autocomplete="username" placeholder="Email or Phone Number">
+            </span>
         </label>
 
-        <label class="leaf-field">
-            <div class="leaf-field-input">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></svg>
+        <label class="travel-field">
+            <span class="travel-field-control">
+                <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 1 1 8 0v4"/></svg>
                 <input type="password" name="password" required autocomplete="current-password" placeholder="Password">
-            </div>
+                <button type="button" class="travel-password-toggle" aria-label="Show password">
+                    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+                </button>
+            </span>
         </label>
 
         <input type="hidden" name="login_lat" id="loginLat">
         <input type="hidden" name="login_lng" id="loginLng">
 
-        <button type="submit" class="leaf-submit">
+        <a class="travel-forgot" href="#" onclick="return false;">Forgot Password?</a>
+
+        <button type="submit" class="travel-submit">
             Login
         </button>
 
-        <div class="leaf-note" id="locationPermissionMessage" data-state="info">
+        <div class="travel-note" id="locationPermissionMessage" data-state="info">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4"/><circle cx="12" cy="16" r="0.6" fill="currentColor"/></svg>
             <span>Location permission is required for user login.</span>
         </div>
     </form>
-
-    <div class="leaf-tracking-animation" aria-hidden="true">
-        <svg viewBox="0 0 800 400" preserveAspectRatio="xMidYMid slice" width="100%" height="100%">
-            <defs>
-                <filter id="bottomGlow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feGaussianBlur stdDeviation="4" result="blur" />
-                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
-                </filter>
-            </defs>
-            
-            <g class="bottom-contours" stroke="#34d399" fill="none" opacity="0.12">
-                <path d="M-100 150 Q 150 50 350 200 T 900 100" stroke-width="1" />
-                <path d="M-100 250 Q 200 150 400 300 T 900 200" stroke-width="2" />
-                <path d="M-100 350 Q 250 250 450 350 T 900 250" stroke-width="1" />
-            </g>
-
-            <path id="leafTrack1" d="M-100 250 Q 200 150 400 300 T 900 200" stroke="#10b981" stroke-width="2.5" fill="none" stroke-dasharray="8 12" opacity="0.3"/>
-            <path id="leafTrack2" d="M-100 150 Q 150 50 350 200 T 900 100" stroke="#a3e635" stroke-width="1.5" fill="none" stroke-dasharray="4 8" opacity="0.2"/>
-
-            <g filter="url(#bottomGlow)">
-                <circle r="6" fill="#a3e635">
-                    <animateMotion dur="12s" repeatCount="indefinite">
-                        <mpath href="#leafTrack1"/>
-                    </animateMotion>
-                </circle>
-                <circle r="3" fill="#ffffff">
-                    <animateMotion dur="12s" repeatCount="indefinite">
-                        <mpath href="#leafTrack1"/>
-                    </animateMotion>
-                </circle>
-
-                <circle r="4" fill="#34d399">
-                    <animateMotion dur="18s" repeatCount="indefinite" begin="2s">
-                        <mpath href="#leafTrack2"/>
-                    </animateMotion>
-                </circle>
-
-                <g transform="translate(650, 250)">
-                    <circle r="20" fill="none" stroke="#a3e635" stroke-width="2">
-                        <animate attributeName="r" values="5;30" dur="2.5s" repeatCount="indefinite" />
-                        <animate attributeName="opacity" values="1;0" dur="2.5s" repeatCount="indefinite" />
-                    </circle>
-                    <circle r="30" fill="none" stroke="#a3e635" stroke-width="1">
-                        <animate attributeName="r" values="10;45" dur="2.5s" repeatCount="indefinite" begin="1.25s"/>
-                        <animate attributeName="opacity" values="0.8;0" dur="2.5s" repeatCount="indefinite" begin="1.25s"/>
-                    </circle>
-                    <circle r="6" fill="#a3e635" />
-                    <circle r="2.5" fill="#ffffff" />
-                </g>
-
-                <g transform="translate(150, 115)">
-                    <circle r="15" fill="none" stroke="#34d399" stroke-width="1.5">
-                        <animate attributeName="r" values="4;20" dur="3s" repeatCount="indefinite" />
-                        <animate attributeName="opacity" values="0.8;0" dur="3s" repeatCount="indefinite" />
-                    </circle>
-                    <circle r="4" fill="#34d399" />
-                </g>
-            </g>
-        </svg>
-    </div>
 </section>
 
 <script>
@@ -115,6 +553,7 @@
     const locationPermissionText = locationPermissionMessage.querySelector("span");
     const usernameInput = loginForm.querySelector('input[name="username"]');
     const passwordInput = loginForm.querySelector('input[name="password"]');
+    const passwordToggle = loginForm.querySelector(".travel-password-toggle");
     const savedLoginKey = "driverLoginSavedCredentials";
     const savedLoginDays = 7;
     let locationRequested = false;
@@ -189,5 +628,14 @@
     });
 
     loadSavedCredentials();
+
+    if (passwordToggle) {
+        passwordToggle.addEventListener("click", function () {
+            const isPassword = passwordInput.type === "password";
+            passwordInput.type = isPassword ? "text" : "password";
+            passwordToggle.setAttribute("aria-label", isPassword ? "Hide password" : "Show password");
+        });
+    }
 </script>
-{% endblock %}
+</body>
+</html>
