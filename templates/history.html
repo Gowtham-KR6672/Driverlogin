@@ -119,27 +119,16 @@
     {% if entries %}
         <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
         <script>
-            const satelliteTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
-            const roadTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}";
-            const labelTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+            const roadTiles = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
             const routeCache = new Map();
             const routeMapModal = document.getElementById("routeMapModal");
             const closeRouteMapModal = document.getElementById("closeRouteMapModal");
             let expandedMap = null;
 
-            function addSatelliteLayers(map, showAttribution) {
-                L.tileLayer(satelliteTiles, {
-                    maxZoom: 19,
-                    attribution: showAttribution ? "Tiles &copy; Esri" : ""
-                }).addTo(map);
+            function addRoadLayer(map, showAttribution) {
                 L.tileLayer(roadTiles, {
                     maxZoom: 19,
-                    attribution: showAttribution ? "Roads &copy; Esri" : ""
-                }).addTo(map);
-                L.tileLayer(labelTiles, {
-                    maxZoom: 19,
-                    pane: "overlayPane",
-                    attribution: showAttribution ? "Labels &copy; Esri" : ""
+                    attribution: showAttribution ? "&copy; OpenStreetMap contributors" : ""
                 }).addTo(map);
             }
 
@@ -198,7 +187,7 @@
                 }
 
                 expandedMap = L.map("expandedRouteMap");
-                addSatelliteLayers(expandedMap, true);
+                addRoadLayer(expandedMap, true);
                 const points = result.route.map((point) => [point.lat, point.lng]);
                 const line = L.polyline(points, { color: "#f59e0b", weight: 6 }).addTo(expandedMap);
                 L.marker(points[0], { icon: routeEndpointIcon("#16a34a", "S") }).addTo(expandedMap).bindPopup("Start");

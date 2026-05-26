@@ -69,6 +69,7 @@
                 <input type="hidden" name="end_lat" class="end-lat">
                 <input type="hidden" name="end_lng" class="end-lng">
                 <input type="hidden" name="end_accuracy" class="end-accuracy">
+                <input type="hidden" name="end_recorded_at" class="end-recorded-at">
                 <div class="swipe swipe-end" data-swipe data-form-id="endWorkForm{{ entry.id }}" data-label="Swipe to End Work" data-confirmed-label="Ending...">
                     <div class="swipe-track">
                         <div class="swipe-fill"></div>
@@ -355,7 +356,8 @@
             body: JSON.stringify({
                 lat: currentLat,
                 lng: currentLng,
-                accuracy: accuracy
+                accuracy: accuracy,
+                recorded_at: currentTime
             })
         });
         const result = await response.json();
@@ -408,6 +410,7 @@
                     form.querySelector(".end-lat").value = position.coords.latitude;
                     form.querySelector(".end-lng").value = position.coords.longitude;
                     form.querySelector(".end-accuracy").value = position.coords.accuracy || "";
+                    form.querySelector(".end-recorded-at").value = position.timestamp || Date.now();
                     form.dataset.endLocationReady = "1";
                     if (typeof form.requestSubmit === "function") {
                         form.requestSubmit();

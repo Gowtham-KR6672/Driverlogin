@@ -217,7 +217,7 @@
                 </div>
                 <aside class="map-card">
                     <div class="map-card-header">
-                        <h3>Live Satellite Track</h3>
+                        <h3>Live Road Track</h3>
                         <span id="mapStatus">Waiting for location</span>
                     </div>
                     <div id="liveMap" class="live-map"></div>
@@ -264,9 +264,7 @@
             let routeLine = null;
             let hasCenteredLiveMap = false;
 
-            const satelliteTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
-            const roadTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}";
-            const labelTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+            const roadTiles = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
             function ensureLeafletLoaded() {
                 if (window.L) {
@@ -293,19 +291,10 @@
                 return leafletReady;
             }
 
-            function addSatelliteLayers(map, showAttribution) {
-                L.tileLayer(satelliteTiles, {
-                    maxZoom: 19,
-                    attribution: showAttribution ? "Tiles &copy; Esri" : ""
-                }).addTo(map);
+            function addRoadLayer(map, showAttribution) {
                 L.tileLayer(roadTiles, {
                     maxZoom: 19,
-                    attribution: showAttribution ? "Roads &copy; Esri" : ""
-                }).addTo(map);
-                L.tileLayer(labelTiles, {
-                    maxZoom: 19,
-                    pane: "overlayPane",
-                    attribution: showAttribution ? "Labels &copy; Esri" : ""
+                    attribution: showAttribution ? "&copy; OpenStreetMap contributors" : ""
                 }).addTo(map);
             }
 
@@ -318,7 +307,7 @@
                     startMarker = L.marker([defaultLocation.lat, defaultLocation.lng], { icon: routeEndpointIcon("#16a34a", "S") }).addTo(liveMap);
                     marker = L.marker([defaultLocation.lat, defaultLocation.lng], { icon: routeEndpointIcon("#dc2626", "L") }).addTo(liveMap);
                     routeLine = L.polyline([], { color: "#f59e0b", weight: 5 }).addTo(liveMap);
-                    addSatelliteLayers(liveMap, true);
+                    addRoadLayer(liveMap, true);
                 }
             }
 
@@ -445,7 +434,7 @@
                 }
 
                 expandedMap = L.map("expandedRouteMap");
-                addSatelliteLayers(expandedMap, true);
+                addRoadLayer(expandedMap, true);
                 const points = result.route.map((point) => [point.lat, point.lng]);
                 const line = L.polyline(points, { color: "#f59e0b", weight: 6 }).addTo(expandedMap);
                 L.marker(points[0], { icon: routeEndpointIcon("#16a34a", "S") }).addTo(expandedMap).bindPopup("Start");

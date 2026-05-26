@@ -178,6 +178,33 @@ def calculate_distance_km(lat1, lng1, lat2, lng2):
     return radius_km * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
+def parse_client_recorded_at(value):
+    if value in (None, ""):
+        return None
+
+    try:
+        timestamp = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    if timestamp > 10_000_000_000:
+        timestamp = timestamp / 1000
+
+    now = datetime.now()
+    try:
+        recorded_at = datetime.fromtimestamp(timestamp)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+    if recorded_at > now + timedelta(minutes=2):
+        return now
+
+    if recorded_at < now - timedelta(days=1):
+        return None
+
+    return recorded_at
+
+
 def serialize_route_points(points):
     return [
         {
@@ -199,13 +226,14 @@ SHORT_INTERVAL_SECONDS = 15.0
 MIN_SEGMENT_SECONDS = 1.0
 
 
-def save_location_point(cur, entry, lat, lng, accuracy):
+def save_location_point(cur, entry, lat, lng, accuracy, recorded_at=None):
     try:
         accuracy_value = float(accuracy) if accuracy is not None else None
     except (TypeError, ValueError):
         accuracy_value = None
 
     existing_distance = float(entry["distance_km"] or 0)
+    recorded_at = recorded_at or datetime.now()
 
     if accuracy_value is not None and accuracy_value > MAX_ACCEPTABLE_ACCURACY_M:
         return existing_distance, 0
@@ -242,7 +270,7 @@ def save_location_point(cur, entry, lat, lng, accuracy):
         if previous_recorded_at:
             elapsed_seconds = max(
                 MIN_SEGMENT_SECONDS,
-                (datetime.now(previous_recorded_at.tzinfo) - previous_recorded_at).total_seconds(),
+                (recorded_at - previous_recorded_at).total_seconds(),
             )
             speed_mps = segment_m / elapsed_seconds
 
@@ -267,21 +295,21 @@ def save_location_point(cur, entry, lat, lng, accuracy):
     distance_km = existing_distance + segment_km
     cur.execute(
         """
-        INSERT INTO work_entry_locations (work_entry_id, lat, lng, accuracy)
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO work_entry_locations (work_entry_id, lat, lng, accuracy, recorded_at)
+        VALUES (%s, %s, %s, %s, %s)
         """,
-        (entry["id"], lat, lng, accuracy_value),
+        (entry["id"], lat, lng, accuracy_value, recorded_at),
     )
     cur.execute(
         """
         UPDATE work_entries
         SET current_lat = %s,
             current_lng = %s,
-            location_updated_at = CURRENT_TIMESTAMP,
+            location_updated_at = %s,
             distance_km = %s
         WHERE id = %s
         """,
-        (lat, lng, distance_km, entry["id"]),
+        (lat, lng, recorded_at, distance_km, entry["id"]),
     )
     return distance_km, cur.rowcount
 
@@ -1375,6 +1403,7 @@ def update_location():
     lat = data.get("lat")
     lng = data.get("lng")
     accuracy = data.get("accuracy")
+    recorded_at = parse_client_recorded_at(data.get("recorded_at") or data.get("timestamp"))
 
     location = parse_location(lat, lng)
     if not location:
@@ -1404,7 +1433,7 @@ def update_location():
                 conn.commit()
                 return jsonify({"ok": False, "message": "No active work entry."}), 404
 
-            distance_km, updated = save_location_point(cur, entry, lat, lng, accuracy)
+            distance_km, updated = save_location_point(cur, entry, lat, lng, accuracy, recorded_at)
         conn.commit()
 
     return jsonify({"ok": True, "accepted": bool(updated), "distance_km": round(distance_km, 3)})
@@ -1417,6 +1446,7 @@ def background_location_update():
     lat = data.get("lat")
     lng = data.get("lng")
     accuracy = data.get("accuracy")
+    recorded_at = parse_client_recorded_at(data.get("recorded_at") or data.get("timestamp"))
 
     if not token:
         return jsonify({"ok": False, "message": "Tracking token is required."}), 401
@@ -1448,7 +1478,7 @@ def background_location_update():
                 conn.commit()
                 return jsonify({"ok": False, "message": "No active work entry."}), 404
 
-            distance_km, updated = save_location_point(cur, entry, lat, lng, accuracy)
+            distance_km, updated = save_location_point(cur, entry, lat, lng, accuracy, recorded_at)
         conn.commit()
 
     return jsonify({"ok": True, "accepted": bool(updated), "distance_km": round(distance_km, 3)})
@@ -1632,6 +1662,7 @@ def end_work_entry(entry_id):
         return redirect(url_for("admin_dashboard"))
 
     end_location = parse_location(request.form.get("end_lat"), request.form.get("end_lng"))
+    end_recorded_at = parse_client_recorded_at(request.form.get("end_recorded_at"))
     try:
         end_accuracy = float(request.form.get("end_accuracy")) if request.form.get("end_accuracy") else None
     except (TypeError, ValueError):
@@ -1654,7 +1685,7 @@ def end_work_entry(entry_id):
             updated = 0
             if entry:
                 if end_location:
-                    save_location_point(cur, entry, end_location[0], end_location[1], end_accuracy)
+                    save_location_point(cur, entry, end_location[0], end_location[1], end_accuracy, end_recorded_at)
                 recalculate_entry_distance(cur, entry_id)
                 cur.execute(
                     """
