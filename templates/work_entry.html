@@ -399,12 +399,15 @@
         }
     }
 
-    if (hasActiveWork && "geolocation" in navigator) {
+    if (hasActiveWork) {
         notifyNativeBackgroundTracking("page_ready");
         setTimeout(function () { notifyNativeBackgroundTracking("retry_1"); }, 750);
         setTimeout(function () { notifyNativeBackgroundTracking("retry_2"); }, 2500);
         refreshSavedRoute();
         setInterval(refreshSavedRoute, 5000);
+    }
+
+    if (hasActiveWork && "geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(sendLocation);
         navigator.geolocation.watchPosition(sendLocation, null, {
             enableHighAccuracy: true,
