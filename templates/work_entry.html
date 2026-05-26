@@ -1,9 +1,7 @@
 {% extends "base.html" %}
 
 {% block head_extra %}
-    {% if entries %}
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    {% endif %}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 {% endblock %}
 
 {% block content %}
@@ -38,7 +36,7 @@
         <input type="hidden" name="start_lat" id="startLat">
         <input type="hidden" name="start_lng" id="startLng">
         <p class="permission-note full" id="startLocationMessage">Location permission is required to start work and calculate travel distance.</p>
-        <div class="swipe full" data-swipe data-form-id="workStartForm" data-label="Swipe to Start Work" data-confirmed-label="Starting…">
+        <div class="swipe full" data-swipe data-form-id="workStartForm" data-label="Swipe to Start Work" data-confirmed-label="Starting...">
             <div class="swipe-track">
                 <div class="swipe-fill"></div>
                 <span class="swipe-label">Swipe to Start Work</span>
@@ -68,7 +66,10 @@
                 <dd>{{ entry.remarks or "-" }}</dd>
             </dl>
             <form method="post" action="{{ url_for('end_work_entry', entry_id=entry.id) }}" class="inline-form" id="endWorkForm{{ entry.id }}">
-                <div class="swipe swipe-end" data-swipe data-form-id="endWorkForm{{ entry.id }}" data-label="Swipe to End Work" data-confirmed-label="Ending…">
+                <input type="hidden" name="end_lat" class="end-lat">
+                <input type="hidden" name="end_lng" class="end-lng">
+                <input type="hidden" name="end_accuracy" class="end-accuracy">
+                <div class="swipe swipe-end" data-swipe data-form-id="endWorkForm{{ entry.id }}" data-label="Swipe to End Work" data-confirmed-label="Ending...">
                     <div class="swipe-track">
                         <div class="swipe-fill"></div>
                         <span class="swipe-label">Swipe to End Work</span>
@@ -86,7 +87,7 @@
     {% if entries %}
         <div class="map-card work-map-card">
             <div class="map-card-header">
-                <h3>Live Satellite Track</h3>
+                <h3>Live Road Track</h3>
                 <div class="map-status-info">
                     <span id="mapStatus" class="status-badge">Tracking</span>
                     <span id="mapAccuracy" class="accuracy-indicator" style="display: none;"></span>
@@ -98,11 +99,32 @@
     {% endif %}
 </section>
 
-{% if entries %}
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-{% endif %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<div
+    id="workPageConfig"
+    data-has-active-work="{{ 'true' if entries else 'false' }}"
+    data-active-entry-id="{{ entries[0].id if entries else '' }}"
+    data-update-url="/location/update"
+    hidden
+></div>
+<template id="backgroundTrackingData">{{ background_tracking|tojson }}</template>
+<template id="activeRouteData">{{ active_route|tojson }}</template>
 <script>
-    window.DRIVER_BACKGROUND_LOCATION = {{ background_tracking|tojson }};
+    function readJsonScript(id, fallback) {
+        const element = document.getElementById(id);
+        if (!element) {
+            return fallback;
+        }
+
+        try {
+            return JSON.parse(element.textContent || "");
+        } catch (error) {
+            return fallback;
+        }
+    }
+
+    const workPageConfig = document.getElementById("workPageConfig");
+    window.DRIVER_BACKGROUND_LOCATION = readJsonScript("backgroundTrackingData", { enabled: false });
 
     const workStartForm = document.getElementById("workStartForm");
     const workGivenPerson = document.getElementById("workGivenPerson");
@@ -184,8 +206,10 @@
         );
     });
 
-    const hasActiveWork = {{ 'true' if entries else 'false' }};
-    const activeRoute = {{ active_route|tojson }};
+    const hasActiveWork = workPageConfig?.dataset.hasActiveWork === "true";
+    const activeEntryId = workPageConfig?.dataset.activeEntryId || null;
+    const updateLocationUrl = workPageConfig?.dataset.updateUrl || "/location/update";
+    const activeRoute = readJsonScript("activeRouteData", []);
     const activeDistance = document.getElementById("activeDistance");
     let liveWorkMap = null;
     let liveMarker = null;
@@ -195,24 +219,72 @@
     if (hasActiveWork && routePoints.length && window.L) {
         const latestPoint = routePoints[routePoints.length - 1];
         liveWorkMap = L.map("liveWorkMap").setView(latestPoint, 16);
-        const satelliteTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
-        const roadTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}";
-        const labelTiles = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
-        L.tileLayer(satelliteTiles, {
-            maxZoom: 19,
-            attribution: "Tiles &copy; Esri"
-        }).addTo(liveWorkMap);
+        const roadTiles = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
         L.tileLayer(roadTiles, {
             maxZoom: 19,
-            attribution: "Roads &copy; Esri"
-        }).addTo(liveWorkMap);
-        L.tileLayer(labelTiles, {
-            maxZoom: 19,
-            attribution: "Labels &copy; Esri"
+            attribution: "&copy; OpenStreetMap contributors"
         }).addTo(liveWorkMap);
         livePolyline = L.polyline(routePoints, { color: "#f59e0b", weight: 5 }).addTo(liveWorkMap);
         liveMarker = L.marker(latestPoint).addTo(liveWorkMap);
         liveWorkMap.fitBounds(livePolyline.getBounds(), { maxZoom: 17, padding: [24, 24] });
+    }
+
+    function ensureLiveWorkMap(startPoint) {
+        if (!hasActiveWork || !window.L || liveWorkMap || !startPoint) {
+            return;
+        }
+
+        const roadTiles = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+        liveWorkMap = L.map("liveWorkMap").setView(startPoint, 16);
+        L.tileLayer(roadTiles, {
+            maxZoom: 19,
+            attribution: "&copy; OpenStreetMap contributors"
+        }).addTo(liveWorkMap);
+        livePolyline = L.polyline([], { color: "#f59e0b", weight: 5 }).addTo(liveWorkMap);
+        liveMarker = L.marker(startPoint).addTo(liveWorkMap);
+    }
+
+    function updateRouteFromServer(route, distanceKm) {
+        const serverPoints = (route || []).map((point) => [point.lat, point.lng]);
+        if (!serverPoints.length) {
+            return;
+        }
+
+        routePoints = serverPoints;
+        const latestPoint = routePoints[routePoints.length - 1];
+        ensureLiveWorkMap(latestPoint);
+        if (activeDistance) {
+            activeDistance.textContent = `${Number(distanceKm || 0).toFixed(2)} km`;
+        }
+
+        if (liveWorkMap && liveMarker && livePolyline) {
+            liveMarker.setLatLng(latestPoint);
+            livePolyline.setLatLngs(routePoints);
+            if (routePoints.length > 1) {
+                liveWorkMap.fitBounds(livePolyline.getBounds(), { maxZoom: 17, padding: [24, 24] });
+            } else {
+                liveWorkMap.setView(latestPoint, 16);
+            }
+        }
+    }
+
+    async function refreshSavedRoute() {
+        if (!activeEntryId) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/work-entry/${activeEntryId}/route`, { cache: "no-store" });
+            const result = await response.json();
+            if (result && result.has_route) {
+                updateRouteFromServer(result.route, result.distance_km);
+            }
+        } catch (error) {
+            const mapStatus = document.getElementById("mapStatus");
+            if (mapStatus) {
+                mapStatus.textContent = "Reconnect";
+            }
+        }
     }
 
     function calculateDistance(lat1, lng1, lat2, lng2) {
@@ -258,16 +330,16 @@
 
         const accuracyIndicator = document.getElementById("mapAccuracy");
 
-        let accuracyStatus = "🟢 Excellent";
+        let accuracyStatus = "Excellent";
         let accuracyClass = "accuracy-excellent";
         if (accuracy > 30) {
-            accuracyStatus = "🟡 Poor";
+            accuracyStatus = "Poor";
             accuracyClass = "accuracy-poor";
         } else if (accuracy > 15) {
-            accuracyStatus = "🟡 Fair";
+            accuracyStatus = "Fair";
             accuracyClass = "accuracy-fair";
         } else if (accuracy > 10) {
-            accuracyStatus = "🟢 Good";
+            accuracyStatus = "Good";
             accuracyClass = "accuracy-good";
         }
 
@@ -275,7 +347,7 @@
         accuracyIndicator.className = `accuracy-indicator ${accuracyClass}`;
         accuracyIndicator.style.display = "inline-block";
 
-        const response = await fetch("{{ url_for('update_location') }}", {
+        const response = await fetch(updateLocationUrl, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -288,20 +360,27 @@
         });
         const result = await response.json();
         if (result.ok && activeDistance) {
-            lastAcceptedLocation = { lat: currentLat, lng: currentLng, timestamp: currentTime };
             activeDistance.textContent = `${Number(result.distance_km).toFixed(2)} km`;
         }
 
-        if (result.ok && liveWorkMap && liveMarker && livePolyline) {
+        if (result.accepted) {
+            lastAcceptedLocation = { lat: currentLat, lng: currentLng, timestamp: currentTime };
+        }
+
+        if (result.accepted && liveWorkMap && liveMarker && livePolyline) {
             const latLng = [currentLat, currentLng];
             routePoints.push(latLng);
             liveMarker.setLatLng(latLng);
             livePolyline.setLatLngs(routePoints);
             liveWorkMap.setView(latLng, 16);
+        } else if (result.ok) {
+            refreshSavedRoute();
         }
     }
 
     if (hasActiveWork && "geolocation" in navigator) {
+        refreshSavedRoute();
+        setInterval(refreshSavedRoute, 5000);
         navigator.geolocation.getCurrentPosition(sendLocation);
         navigator.geolocation.watchPosition(sendLocation, null, {
             enableHighAccuracy: true,
@@ -309,6 +388,49 @@
             timeout: 15000
         });
     }
+
+    document.querySelectorAll("form[id^='endWorkForm']").forEach(function (form) {
+        let endLocationRequested = false;
+        form.addEventListener("submit", function (event) {
+            if (endLocationRequested || form.dataset.endLocationReady === "1") {
+                return;
+            }
+
+            if (!("geolocation" in navigator)) {
+                return;
+            }
+
+            event.preventDefault();
+            endLocationRequested = true;
+
+            navigator.geolocation.getCurrentPosition(
+                function (position) {
+                    form.querySelector(".end-lat").value = position.coords.latitude;
+                    form.querySelector(".end-lng").value = position.coords.longitude;
+                    form.querySelector(".end-accuracy").value = position.coords.accuracy || "";
+                    form.dataset.endLocationReady = "1";
+                    if (typeof form.requestSubmit === "function") {
+                        form.requestSubmit();
+                    } else {
+                        form.submit();
+                    }
+                },
+                function () {
+                    form.dataset.endLocationReady = "1";
+                    if (typeof form.requestSubmit === "function") {
+                        form.requestSubmit();
+                    } else {
+                        form.submit();
+                    }
+                },
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 0,
+                    timeout: 12000
+                }
+            );
+        });
+    });
 
     function initSwipe(root) {
         if (root.dataset.swipeReady === "1") {
@@ -326,7 +448,7 @@
         }
 
         const originalLabel = root.dataset.label || label.textContent;
-        const confirmedLabel = root.dataset.confirmedLabel || "Loading…";
+        const confirmedLabel = root.dataset.confirmedLabel || "Loading...";
         let dragging = false;
         let startX = 0;
         let position = 0;

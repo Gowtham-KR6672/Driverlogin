@@ -208,7 +208,7 @@ def save_location_point(cur, entry, lat, lng, accuracy):
     existing_distance = float(entry["distance_km"] or 0)
 
     if accuracy_value is not None and accuracy_value > MAX_ACCEPTABLE_ACCURACY_M:
-        return existing_distance, 1
+        return existing_distance, 0
 
     cur.execute(
         """
@@ -250,7 +250,7 @@ def save_location_point(cur, entry, lat, lng, accuracy):
                 speed_mps > MAX_REASONABLE_SPEED_MPS
                 or (elapsed_seconds <= SHORT_INTERVAL_SECONDS and segment_m > MAX_SHORT_INTERVAL_JUMP_M)
             ):
-                return existing_distance, 1
+                return existing_distance, 0
 
         prev_accuracy = float(previous_point["accuracy"] or FALLBACK_ACCURACY_M)
         this_accuracy = accuracy_value if accuracy_value is not None else FALLBACK_ACCURACY_M
@@ -258,7 +258,7 @@ def save_location_point(cur, entry, lat, lng, accuracy):
 
         save_threshold = max(MIN_SAVE_DISTANCE_M, accuracy_floor * 0.6)
         if segment_m < save_threshold:
-            return existing_distance, 1
+            return existing_distance, 0
 
         count_threshold = max(MIN_COUNT_DISTANCE_M, accuracy_floor)
         if segment_m < count_threshold:
@@ -1407,7 +1407,7 @@ def update_location():
             distance_km, updated = save_location_point(cur, entry, lat, lng, accuracy)
         conn.commit()
 
-    return jsonify({"ok": bool(updated), "distance_km": round(distance_km, 3)})
+    return jsonify({"ok": True, "accepted": bool(updated), "distance_km": round(distance_km, 3)})
 
 
 @app.route("/location/background-update", methods=["POST"])
@@ -1451,7 +1451,7 @@ def background_location_update():
             distance_km, updated = save_location_point(cur, entry, lat, lng, accuracy)
         conn.commit()
 
-    return jsonify({"ok": bool(updated), "distance_km": round(distance_km, 3)})
+    return jsonify({"ok": True, "accepted": bool(updated), "distance_km": round(distance_km, 3)})
 
 
 def get_entry_route_points(entry_id):
@@ -1467,6 +1467,60 @@ def get_entry_route_points(entry_id):
                 (entry_id,),
             )
             return cur.fetchall()
+
+
+def recalculate_entry_distance(cur, entry_id):
+    cur.execute(
+        """
+        SELECT lat, lng, accuracy, recorded_at
+        FROM work_entry_locations
+        WHERE work_entry_id = %s
+        ORDER BY recorded_at, id
+        """,
+        (entry_id,),
+    )
+    points = cur.fetchall()
+    if len(points) < 2:
+        return 0
+
+    total_km = 0
+    previous = points[0]
+    for point in points[1:]:
+        segment_km = calculate_distance_km(
+            previous["lat"],
+            previous["lng"],
+            point["lat"],
+            point["lng"],
+        )
+        segment_m = segment_km * 1000
+        previous_recorded_at = previous.get("recorded_at")
+        recorded_at = point.get("recorded_at")
+        if previous_recorded_at and recorded_at:
+            elapsed_seconds = max(MIN_SEGMENT_SECONDS, (recorded_at - previous_recorded_at).total_seconds())
+            speed_mps = segment_m / elapsed_seconds
+            if (
+                speed_mps > MAX_REASONABLE_SPEED_MPS
+                or (elapsed_seconds <= SHORT_INTERVAL_SECONDS and segment_m > MAX_SHORT_INTERVAL_JUMP_M)
+            ):
+                previous = point
+                continue
+
+        prev_accuracy = float(previous["accuracy"] or FALLBACK_ACCURACY_M)
+        this_accuracy = float(point["accuracy"] or FALLBACK_ACCURACY_M)
+        count_threshold = max(MIN_COUNT_DISTANCE_M, (prev_accuracy + this_accuracy) / 2)
+        if segment_m >= count_threshold:
+            total_km += segment_km
+        previous = point
+
+    cur.execute(
+        """
+        UPDATE work_entries
+        SET distance_km = %s
+        WHERE id = %s
+        """,
+        (total_km, entry_id),
+    )
+    return total_km
 
 
 @app.route("/work-entry/<int:entry_id>/route")
@@ -1577,21 +1631,42 @@ def end_work_entry(entry_id):
     if user["role"] == "admin":
         return redirect(url_for("admin_dashboard"))
 
+    end_location = parse_location(request.form.get("end_lat"), request.form.get("end_lng"))
+    try:
+        end_accuracy = float(request.form.get("end_accuracy")) if request.form.get("end_accuracy") else None
+    except (TypeError, ValueError):
+        end_accuracy = None
+
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                UPDATE work_entries
-                SET end_time = CURRENT_TIMESTAMP,
-                    location_updated_at = COALESCE(location_updated_at, CURRENT_TIMESTAMP),
-                    tracking_token = NULL
+                SELECT id, distance_km, current_lat, current_lng, location_updated_at, next_start_time
+                FROM work_entries
                 WHERE id = %s
                     AND user_id = %s
                     AND end_time IS NULL
+                FOR UPDATE
                 """,
                 (entry_id, user["id"]),
             )
-            updated = cur.rowcount
+            entry = cur.fetchone()
+            updated = 0
+            if entry:
+                if end_location:
+                    save_location_point(cur, entry, end_location[0], end_location[1], end_accuracy)
+                recalculate_entry_distance(cur, entry_id)
+                cur.execute(
+                    """
+                    UPDATE work_entries
+                    SET end_time = CURRENT_TIMESTAMP,
+                        location_updated_at = COALESCE(location_updated_at, CURRENT_TIMESTAMP),
+                        tracking_token = NULL
+                    WHERE id = %s
+                    """,
+                    (entry_id,),
+                )
+                updated = cur.rowcount
         conn.commit()
 
     if updated:
