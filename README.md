@@ -67,7 +67,7 @@ Quick path:
 The blueprint creates a Python web service and a Render Postgres database. The production start command is:
 
 ```bash
-gunicorn wsgi:application --bind 0.0.0.0:$PORT
+gunicorn --worker-class eventlet -w 1 wsgi:application --bind 0.0.0.0:$PORT
 ```
 
 Full guide: `deploy/DEPLOY_RENDER.md`
