@@ -19,12 +19,14 @@ from psycopg2 import OperationalError
 from flask import Flask, Response, flash, g, jsonify, redirect, render_template, request, session, url_for
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
+from flask_socketio import SocketIO, emit, join_room, leave_room
 
 
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
@@ -1596,6 +1598,19 @@ def work_entry_route(entry_id):
         }
     )
 
+@app.route("/webview/route/<int:entry_id>")
+def webview_route_viewer(entry_id):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id FROM work_entries WHERE id = %s", (entry_id,))
+            entry = cur.fetchone()
+
+    if not entry:
+        return "Route not found.", 404
+
+    route_points = get_entry_route_points(entry_id)
+    return render_template("webview_map.html", route_points=serialize_route_points(route_points))
+
 
 @app.route("/history")
 @login_required
@@ -1716,6 +1731,410 @@ def end_work_entry(entry_id):
     return redirect(url_for("work_entry"))
 
 
+@app.route("/api/login", methods=["POST"])
+def api_login():
+    data = request.get_json() or {}
+    username = data.get("username", "").strip()
+    password = data.get("password", "")
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM users WHERE username = %s", (username,))
+            user = cur.fetchone()
+
+    if user and check_password_hash(user["password_hash"], password):
+        return jsonify({
+            "token": str(user["id"]),
+            "driver_id": user["id"],
+            "name": user["username"],
+            "role": user["role"],
+            "success": True,
+            "message": "Login successful"
+        })
+    else:
+        return jsonify({
+            "success": False,
+            "message": "Invalid credentials"
+        }), 401
+
+
+@app.route("/api/driver/location", methods=["POST"])
+def api_driver_location():
+    data = request.get_json() or {}
+    driver_id = data.get("driver_id")
+    lat = data.get("latitude")
+    lng = data.get("longitude")
+    accuracy = data.get("accuracy")
+
+    if not driver_id or lat is None or lng is None:
+        return jsonify({"success": False, "message": "Missing parameters"}), 400
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            # Find the active work entry for this driver
+            cur.execute(
+                """
+                SELECT * FROM work_entries 
+                WHERE user_id = %s AND end_time IS NULL 
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (driver_id,)
+            )
+            entry = cur.fetchone()
+
+            if entry:
+                # Save location using the existing helper function
+                distance_km, segment_km = save_location_point(cur, entry, lat, lng, accuracy)
+                # Update work_entries with current location and distance
+                cur.execute(
+                    """
+                    UPDATE work_entries 
+                    SET current_lat = %s, current_lng = %s, 
+                        location_updated_at = CURRENT_TIMESTAMP,
+                        distance_km = %s
+                    WHERE id = %s
+                    """,
+                    (lat, lng, distance_km, entry["id"])
+                )
+                conn.commit()
+                return jsonify({"success": True, "message": "Location updated"})
+            else:
+                return jsonify({"success": False, "message": "No active work entry"}), 404
+
+@app.route("/api/home", methods=["GET"])
+def api_home():
+    driver_id = request.args.get("driver_id")
+    year_arg = request.args.get("year")
+    month_arg = request.args.get("month")
+
+    if not driver_id:
+        return jsonify({"success": False, "message": "driver_id required"}), 400
+
+    if year_arg and month_arg:
+        try:
+            year = int(year_arg)
+            month = int(month_arg)
+            month_start = datetime(year, month, 1)
+            if month == 12:
+                month_end = datetime(year + 1, 1, 1)
+            else:
+                month_end = datetime(year, month + 1, 1)
+        except ValueError:
+            month_start, month_end = current_month_bounds()
+    else:
+        month_start, month_end = current_month_bounds()
+
+    entries = get_history_entries(driver_id, month_start.strftime("%Y-%m-%d"), month_end.strftime("%Y-%m-%d"))
+
+    total_hours = total_duration(entries)
+    total_km = 0.0
+    for entry in entries:
+        total_km += float(entry.get("distance_km") or 0)
+
+    # Simplified chart data for Android
+    return jsonify({
+        "success": True,
+        "stats": {
+            "total_hours_display": total_hours["display"],
+            "total_km": f"{total_km:.2f}",
+            "total_entries": len(entries)
+        }
+    })
+
+@app.route("/api/work-entry/active", methods=["GET"])
+def api_active_work():
+    driver_id = request.args.get("driver_id")
+    if not driver_id:
+        return jsonify({"success": False, "message": "driver_id required"}), 400
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT *
+                FROM work_entries
+                WHERE user_id = %s AND end_time IS NULL
+                ORDER BY created_at DESC
+                """,
+                (driver_id,),
+            )
+            entries = add_duration(cur.fetchall())
+
+    if not entries:
+        return jsonify({"success": True, "has_active_work": False})
+
+    entry = entries[0]
+    return jsonify({
+        "success": True,
+        "has_active_work": True,
+        "entry": {
+            "id": entry["id"],
+            "work_given_person": entry["work_given_person"],
+            "vehicle_type": entry["vehicle_type"],
+            "next_start_time": entry["next_start_time"].strftime("%Y-%m-%d %H:%M:%S") if entry.get("next_start_time") else None,
+            "distance_display": entry["distance_display"],
+            "remarks": entry["remarks"]
+        }
+    })
+
+@app.route("/api/work-entry/start", methods=["POST"])
+def api_start_work():
+    data = request.get_json() or {}
+    driver_id = data.get("driver_id")
+    work_given_person = data.get("work_given_person", "").strip()
+    vehicle_type = data.get("vehicle_type", "").strip().lower()
+    remarks = data.get("remarks", "").strip()
+    lat = data.get("start_lat")
+    lng = data.get("start_lng")
+
+    if not driver_id or not work_given_person or not vehicle_type or not remarks or lat is None or lng is None:
+        return jsonify({"success": False, "message": "Missing required fields"}), 400
+
+    start_location = parse_location(lat, lng)
+    if not start_location:
+        return jsonify({"success": False, "message": "Invalid location"}), 400
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM work_entries WHERE user_id = %s AND end_time IS NULL LIMIT 1",
+                (driver_id,)
+            )
+            if cur.fetchone():
+                return jsonify({"success": False, "message": "Please end current work first"}), 400
+
+            cur.execute(
+                """
+                INSERT INTO work_entries
+                (user_id, work_given_person, vehicle_type, next_start_time, current_lat, current_lng, location_updated_at, tracking_token, remarks)
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s, %s, CURRENT_TIMESTAMP, %s, %s)
+                RETURNING id
+                """,
+                (driver_id, work_given_person, vehicle_type, start_location[0], start_location[1], secrets.token_urlsafe(32), remarks)
+            )
+            entry = cur.fetchone()
+            cur.execute(
+                "INSERT INTO work_entry_locations (work_entry_id, lat, lng) VALUES (%s, %s, %s)",
+                (entry["id"], start_location[0], start_location[1])
+            )
+        conn.commit()
+
+    queue_database_backup("start_work")
+    return jsonify({"success": True, "message": "Work started"})
+
+@app.route("/api/work-entry/end", methods=["POST"])
+def api_end_work():
+    data = request.get_json() or {}
+    driver_id = data.get("driver_id")
+    
+    if not driver_id:
+        return jsonify({"success": False, "message": "driver_id required"}), 400
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id FROM work_entries WHERE user_id = %s AND end_time IS NULL LIMIT 1",
+                (driver_id,)
+            )
+            entry = cur.fetchone()
+            if not entry:
+                return jsonify({"success": False, "message": "No active work found"}), 404
+
+            cur.execute(
+                """
+                UPDATE work_entries
+                SET end_time = CURRENT_TIMESTAMP, tracking_token = NULL
+                WHERE id = %s
+                """,
+                (entry["id"],)
+            )
+        conn.commit()
+
+    queue_database_backup("end_work")
+    return jsonify({"success": True, "message": "Work ended"})
+
+@app.route("/api/history", methods=["GET"])
+def api_history():
+    driver_id = request.args.get("driver_id")
+    if not driver_id:
+        return jsonify({"success": False, "message": "driver_id required"}), 400
+
+    from_date = request.args.get("from_date", "").strip()
+    to_date = request.args.get("to_date", "").strip()
+    entries = get_history_entries(driver_id, from_date, to_date)
+    
+    history_list = []
+    for entry in entries:
+        history_list.append({
+            "id": entry["id"],
+            "work_given_person": entry["work_given_person"],
+            "vehicle_type": entry["vehicle_type"],
+            "next_start_time": entry["next_start_time"].strftime("%Y-%m-%d %H:%M:%S") if entry.get("next_start_time") else None,
+            "end_time": entry["end_time"].strftime("%Y-%m-%d %H:%M:%S") if entry.get("end_time") else None,
+            "duration": entry["duration"],
+            "distance_display": entry["distance_display"],
+            "remarks": entry["remarks"]
+        })
+
+    return jsonify({"success": True, "entries": history_list})
+
+# ---------------------------------------------------------
+# NATIVE ADMIN API ENDPOINTS (FOR MOBILE APP)
+# ---------------------------------------------------------
+
+def is_admin_api(admin_id):
+    if not admin_id: return False
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
+                user = cur.fetchone()
+                return user and user["role"] == "admin"
+    except Exception:
+        return False
+
+@app.route("/api/admin/dashboard", methods=["GET"])
+def api_admin_dashboard():
+    admin_id = request.args.get("admin_id")
+    if not is_admin_api(admin_id): return jsonify({"success": False, "message": "Unauthorized"}), 403
+    
+    stats = get_admin_home_stats()
+    active = []
+    for e in stats["active_entries"]:
+        active.append({
+            "id": e["id"],
+            "username": e["username"],
+            "vehicle_type": e["vehicle_type"],
+            "work_given_person": e["work_given_person"],
+            "distance_display": e["distance_display"],
+            "start_time": e["next_start_time"].strftime("%Y-%m-%d %H:%M:%S") if e.get("next_start_time") else None
+        })
+    return jsonify({
+        "success": True, 
+        "employee_count": stats["employee_count"],
+        "travel_hours_display": stats["travel_hours_display"],
+        "travel_km": stats["travel_km"],
+        "active_entries": active
+    })
+
+@app.route("/api/admin/users", methods=["GET", "POST"])
+def api_admin_users():
+    admin_id = request.args.get("admin_id") or (request.get_json() or {}).get("admin_id")
+    if not is_admin_api(admin_id): return jsonify({"success": False, "message": "Unauthorized"}), 403
+
+    if request.method == "POST":
+        data = request.get_json() or {}
+        username = data.get("username", "").strip()
+        password = data.get("password", "")
+        if not username or not password:
+            return jsonify({"success": False, "message": "Username and password required"}), 400
+        
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+                if cur.fetchone():
+                    return jsonify({"success": False, "message": "Username already exists"}), 400
+                
+                cur.execute(
+                    "INSERT INTO users (username, password_hash, role) VALUES (%s, %s, 'user')",
+                    (username, generate_password_hash(password)),
+                )
+                conn.commit()
+        return jsonify({"success": True, "message": "User created successfully"})
+
+    # GET: return users
+    users = set_admin_sidebar_users()
+    user_list = []
+    for u in users:
+        user_list.append({
+            "id": u["id"],
+            "username": u["username"],
+            "role": u["role"],
+            "created_at": u["created_at"].strftime("%Y-%m-%d %H:%M:%S")
+        })
+    return jsonify({"success": True, "users": user_list})
+
+@app.route("/api/admin/users/<int:user_id>/reset-password", methods=["POST"])
+def api_admin_reset_password(user_id):
+    data = request.get_json() or {}
+    admin_id = data.get("admin_id")
+    if not is_admin_api(admin_id): return jsonify({"success": False, "message": "Unauthorized"}), 403
+    
+    new_password = data.get("new_password", "")
+    if not new_password:
+        return jsonify({"success": False, "message": "New password required"}), 400
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, username, role FROM users WHERE id = %s AND role = 'user'", (user_id,))
+            if not cur.fetchone():
+                return jsonify({"success": False, "message": "Invalid user"}), 404
+            
+            cur.execute(
+                "UPDATE users SET password_hash = %s WHERE id = %s",
+                (generate_password_hash(new_password), user_id),
+            )
+            conn.commit()
+    return jsonify({"success": True, "message": "Password reset successfully"})
+
+@app.route("/api/admin/users/<int:user_id>/delete", methods=["POST"])
+def api_admin_delete_user(user_id):
+    data = request.get_json() or {}
+    admin_id = data.get("admin_id")
+    if not is_admin_api(admin_id): return jsonify({"success": False, "message": "Unauthorized"}), 403
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, username, role FROM users WHERE id = %s AND role = 'user'", (user_id,))
+            if not cur.fetchone():
+                return jsonify({"success": False, "message": "Invalid user"}), 404
+            
+            cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+            conn.commit()
+    return jsonify({"success": True, "message": "User deleted successfully"})
+
+@app.route("/api/admin/work", methods=["GET"])
+def api_admin_work():
+    admin_id = request.args.get("admin_id")
+    if not is_admin_api(admin_id): return jsonify({"success": False, "message": "Unauthorized"}), 403
+    
+    user_id = request.args.get("user_id", type=int)
+    if not user_id:
+        return jsonify({"success": False, "message": "user_id required"}), 400
+        
+    entries = get_history_entries(user_id)
+    history_list = []
+    for entry in entries:
+        history_list.append({
+            "id": entry["id"],
+            "work_given_person": entry["work_given_person"],
+            "vehicle_type": entry["vehicle_type"],
+            "next_start_time": entry["next_start_time"].strftime("%Y-%m-%d %H:%M:%S") if entry.get("next_start_time") else None,
+            "end_time": entry["end_time"].strftime("%Y-%m-%d %H:%M:%S") if entry.get("end_time") else None,
+            "duration": entry["duration"],
+            "distance_display": entry["distance_display"],
+            "remarks": entry["remarks"]
+        })
+    return jsonify({"success": True, "entries": history_list})
+
+@socketio.on('driver_location_update')
+def handle_driver_location_update(data):
+    driver_id = data.get('driver_id')
+    if driver_id:
+        emit('location_updated', data, room=f"driver_{driver_id}")
+
+@socketio.on('join_driver_room')
+def handle_join_room(data):
+    driver_id = data.get('driver_id')
+    if driver_id:
+        join_room(f"driver_{driver_id}")
+
+@socketio.on('leave_driver_room')
+def handle_leave_room(data):
+    driver_id = data.get('driver_id')
+    if driver_id:
+        leave_room(f"driver_{driver_id}")
+
 if __name__ == "__main__":
     try:
         init_db()
@@ -1729,7 +2148,7 @@ if __name__ == "__main__":
         print(exc)
         raise SystemExit(1)
 
-    host = os.environ.get("FLASK_RUN_HOST", "127.0.0.1")
+    host = os.environ.get("FLASK_RUN_HOST", "0.0.0.0")
     port = int(os.environ.get("PORT", "5001"))
     print(f"\nDriver Login running at http://{host}:{port}")
-    app.run(host=host, port=port, debug=True)
+    socketio.run(app, host=host, port=port, debug=True, allow_unsafe_werkzeug=True)

@@ -244,6 +244,7 @@
 {% endblock %}
 
 {% block scripts %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     {% if selected_user %}
         <script>
             const selectedUserId = {{ selected_user.id }};
@@ -371,7 +372,28 @@
             }
 
             refreshLocation();
-            setInterval(refreshLocation, 3000);
+            setInterval(refreshLocation, 10000); // Fallback slow poll for distance updates
+
+            // Socket.IO for instant live map tracking
+            const socket = io();
+            socket.on('connect', () => {
+                console.log("Connected to live tracking socket");
+                socket.emit('join_driver_room', { driver_id: selectedUserId });
+            });
+
+            socket.on('location_updated', (data) => {
+                if (data.driver_id == selectedUserId) {
+                    const currentDistance = mapDistance.textContent.replace('Travel distance: ', '').replace(' km', '') || 0;
+                    renderLocation({
+                        has_location: true,
+                        lat: data.latitude,
+                        lng: data.longitude,
+                        distance_km: currentDistance,
+                        route: [], // renderLocation handles pushing to route if missing
+                        updated_at: "Live"
+                    });
+                }
+            });
 
             const routeCache = new Map();
             const routeMapModal = document.getElementById("routeMapModal");
