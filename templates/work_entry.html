@@ -127,6 +127,22 @@
     const workPageConfig = document.getElementById("workPageConfig");
     window.DRIVER_BACKGROUND_LOCATION = readJsonScript("backgroundTrackingData", { enabled: false });
 
+    function notifyNativeBackgroundTracking(reason) {
+        if (!window.DRIVER_BACKGROUND_LOCATION || !window.DRIVER_BACKGROUND_LOCATION.enabled) {
+            return;
+        }
+
+        if (!window.ReactNativeWebView || typeof window.ReactNativeWebView.postMessage !== "function") {
+            return;
+        }
+
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: "GEO_START_BACKGROUND",
+            requestId: `active_work_${reason}`,
+            backgroundConfig: window.DRIVER_BACKGROUND_LOCATION
+        }));
+    }
+
     const workStartForm = document.getElementById("workStartForm");
     const workGivenPerson = document.getElementById("workGivenPerson");
     const otherPersonField = document.getElementById("otherPersonField");
@@ -381,6 +397,9 @@
     }
 
     if (hasActiveWork && "geolocation" in navigator) {
+        notifyNativeBackgroundTracking("page_ready");
+        setTimeout(function () { notifyNativeBackgroundTracking("retry_1"); }, 750);
+        setTimeout(function () { notifyNativeBackgroundTracking("retry_2"); }, 2500);
         refreshSavedRoute();
         setInterval(refreshSavedRoute, 5000);
         navigator.geolocation.getCurrentPosition(sendLocation);
