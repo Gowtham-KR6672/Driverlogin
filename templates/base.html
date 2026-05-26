@@ -7,19 +7,19 @@
     <meta name="format-detection" content="telephone=no">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Driver Login">
+    <meta name="apple-mobile-web-app-title" content="RoadSync">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <title>Driver Login</title>
+    <title>RoadSync</title>
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <link rel="icon" href="{{ url_for('static', filename='icons/app-icon.svg') }}" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/app-icon-192.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/App_icon-192.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     {% block head_extra %}{% endblock %}
 </head>
 <body>
     <header class="topbar">
         <div>
-            <h1>Driver Login</h1>
+            <h1>RoadSync</h1>
             <p>Work entry system</p>
         </div>
         {% if logged_in_user %}

@@ -876,6 +876,7 @@ def login():
             request.form.get("login_lat"),
             request.form.get("login_lng"),
         )
+        native_permissions_ok = request.form.get("native_permissions_ok")
 
         with get_db() as conn:
             with conn.cursor() as cur:
@@ -885,6 +886,12 @@ def login():
         if user and check_password_hash(user["password_hash"], password):
             if user["role"] == "user" and not login_location:
                 flash("Please allow location permission to login.", "error")
+                return redirect(url_for("login"))
+            if user["role"] == "user" and native_permissions_ok == "0":
+                flash(
+                    "Please allow notification, display over other apps, location all the time, and battery no restriction before user login.",
+                    "error",
+                )
                 return redirect(url_for("login"))
 
             session.clear()

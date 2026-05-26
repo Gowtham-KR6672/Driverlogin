@@ -127,12 +127,15 @@
     const workPageConfig = document.getElementById("workPageConfig");
     window.DRIVER_BACKGROUND_LOCATION = readJsonScript("backgroundTrackingData", { enabled: false });
 
-    function notifyNativeBackgroundTracking(reason) {
+    function notifyNativeBackgroundTracking(reason, retryCount = 0) {
         if (!window.DRIVER_BACKGROUND_LOCATION || !window.DRIVER_BACKGROUND_LOCATION.enabled) {
             return;
         }
 
         if (!window.ReactNativeWebView || typeof window.ReactNativeWebView.postMessage !== "function") {
+            if (retryCount < 20) {
+                setTimeout(() => notifyNativeBackgroundTracking(reason, retryCount + 1), 250);
+            }
             return;
         }
 

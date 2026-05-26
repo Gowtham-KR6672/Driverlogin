@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#06305e">
-<title>Driver Login</title>
+<title>RoadSync</title>
 <style>
     html,
     body {
@@ -557,6 +557,7 @@
     const savedLoginKey = "driverLoginSavedCredentials";
     const savedLoginDays = 7;
     let locationRequested = false;
+    let loginSubmitted = false;
 
     function loadSavedCredentials() {
         const savedValue = localStorage.getItem(savedLoginKey);
@@ -592,36 +593,60 @@
         locationPermissionMessage.dataset.state = state;
     }
 
+    function submitLoginForm() {
+        if (loginSubmitted) {
+            return;
+        }
+
+        loginSubmitted = true;
+        if (typeof loginForm.requestSubmit === "function") {
+            HTMLFormElement.prototype.submit.call(loginForm);
+        } else {
+            loginForm.submit();
+        }
+    }
+
     loginForm.addEventListener("submit", function (event) {
         saveCredentialsForSevenDays();
 
-        if (locationRequested || loginLat.value) {
+        if (loginSubmitted || loginLat.value) {
             return;
         }
 
         if (!("geolocation" in navigator)) {
-            setPermissionMessage("Location is not available in this browser. User login requires location permission.", "error");
+            setPermissionMessage("Location is not available in this browser. Logging in...", "pending");
             return;
         }
 
         event.preventDefault();
+        if (locationRequested) {
+            return;
+        }
+
         locationRequested = true;
         setPermissionMessage("Please allow location permission to continue login.", "pending");
 
+        const loginFallback = window.setTimeout(function () {
+            setPermissionMessage("Location is taking too long. Logging in...", "pending");
+            submitLoginForm();
+        }, 2500);
+
         navigator.geolocation.getCurrentPosition(
             function (position) {
+                window.clearTimeout(loginFallback);
                 loginLat.value = position.coords.latitude;
                 loginLng.value = position.coords.longitude;
                 setPermissionMessage("Location allowed. Logging in...", "success");
-                loginForm.submit();
+                submitLoginForm();
             },
             function () {
-                setPermissionMessage("Please allow location permission to login.", "error");
-                loginForm.submit();
+                window.clearTimeout(loginFallback);
+                setPermissionMessage("Location permission was not allowed. Logging in...", "pending");
+                submitLoginForm();
             },
             {
                 enableHighAccuracy: true,
-                timeout: 10000,
+                timeout: 2500,
                 maximumAge: 0
             }
         );
