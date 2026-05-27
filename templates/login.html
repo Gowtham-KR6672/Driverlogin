@@ -400,10 +400,7 @@
 
     .travel-login-screen {
         width: min(100vw, 430px);
-        background-image: url("/static/icons/Mobile_login.png");
-        background-size: cover;
-        background-position: center top;
-        background-repeat: no-repeat;
+        background-color: #0a477d;
     }
 
     .travel-scene,
@@ -415,6 +412,15 @@
         bottom: max(42px, calc(env(safe-area-inset-bottom) + 34px));
     }
 
+    .travel-video-background {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        z-index: 0;
+    }
+
     @media (min-width: 768px) {
         .travel-login-screen {
             position: fixed;
@@ -424,11 +430,7 @@
             height: 100vh;
             height: 100svh;
             margin: 0;
-            background-image: url("/static/icons/Desktop%20Login.png?v=2");
             background-color: #eaf1f9;
-            background-size: 100% 100% !important;
-            background-position: center center !important;
-            background-repeat: no-repeat !important;
         }
 
         .travel-login-card {
@@ -460,38 +462,9 @@
 </head>
 <body>
 <section class="travel-login-screen">
-    <div class="travel-scene" aria-hidden="true">
-        <div class="travel-sky"></div>
-        <div class="travel-cloud travel-cloud-one"></div>
-        <div class="travel-cloud travel-cloud-two"></div>
-        <div class="travel-city">
-            <span></span><span></span><span></span><span></span><span></span><span></span>
-        </div>
-        <div class="travel-mountain travel-mountain-back"></div>
-        <div class="travel-mountain travel-mountain-front"></div>
-        <div class="travel-lake"></div>
-        <div class="travel-road">
-            <span class="travel-lane travel-lane-one"></span>
-            <span class="travel-lane travel-lane-two"></span>
-            <span class="travel-lane travel-lane-three"></span>
-        </div>
-        <div class="travel-car">
-            <span class="travel-car-window"></span>
-            <span class="travel-car-light travel-car-light-left"></span>
-            <span class="travel-car-light travel-car-light-right"></span>
-            <span class="travel-wheel travel-wheel-left"></span>
-            <span class="travel-wheel travel-wheel-right"></span>
-        </div>
-        <svg class="travel-route" viewBox="0 0 120 320" preserveAspectRatio="none" width="84" height="238" fill="none">
-            <path d="M50 8 C20 35 78 54 42 86 S10 142 40 174 90 214 42 252 35 292 72 314" fill="none" />
-            <circle cx="50" cy="8" r="4" />
-            <circle cx="42" cy="86" r="3" />
-            <circle cx="40" cy="174" r="3" />
-            <circle cx="72" cy="314" r="4" />
-        </svg>
-        <div class="travel-map-pin travel-map-pin-left"></div>
-        <div class="travel-map-pin travel-map-pin-right"></div>
-    </div>
+    <video class="travel-video-background" autoplay muted loop playsinline>
+        <source src="/static/icons/Login_Page_Video.mp4" type="video/mp4">
+    </video>
 
     <header class="travel-brand">
         <div class="travel-logo-pin" aria-hidden="true">

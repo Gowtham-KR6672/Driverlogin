@@ -290,10 +290,6 @@ def save_location_point(cur, entry, lat, lng, accuracy, recorded_at=None):
         if segment_m < save_threshold:
             return existing_distance, 0
 
-        count_threshold = max(MIN_COUNT_DISTANCE_M, accuracy_floor)
-        if segment_m < count_threshold:
-            segment_km = 0
-
     distance_km = existing_distance + segment_km
     cur.execute(
         """
@@ -2149,6 +2145,6 @@ if __name__ == "__main__":
         raise SystemExit(1)
 
     host = os.environ.get("FLASK_RUN_HOST", "0.0.0.0")
-    port = int(os.environ.get("PORT", "5001"))
+    port = int(os.environ.get("PORT", "5005"))
     print(f"\nDriver Login running at http://{host}:{port}")
     socketio.run(app, host=host, port=port, debug=True, allow_unsafe_werkzeug=True)
