@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 from urllib.parse import urlparse, unquote
+from zoneinfo import ZoneInfo
 
 import psycopg2
 import psycopg2.extras
@@ -33,6 +34,10 @@ DATABASE_URL = os.environ.get(
     "postgresql://postgres:postgres@localhost:5432/driver_login",
 )
 APP_TIMEZONE = os.environ.get("APP_TIMEZONE", "Asia/Kolkata")
+
+def get_local_now():
+    return datetime.now(ZoneInfo(APP_TIMEZONE)).replace(tzinfo=None)
+
 BASE_DIR = Path(__file__).resolve().parent
 BACKUP_DIR = BASE_DIR / "backups"
 PG_DUMP_PATH = os.environ.get("PG_DUMP_PATH") or shutil.which("pg_dump")
@@ -101,7 +106,7 @@ def create_database_backup(label="auto"):
 
     parsed = urlparse(DATABASE_URL)
     database_name = parsed.path.lstrip("/")
-    month_name = datetime.now().strftime("%Y_%m")
+    month_name = get_local_now().strftime("%Y_%m")
     backup_file = BACKUP_DIR / f"{database_name}_{month_name}.backup"
     latest_file = BACKUP_DIR / f"{database_name}_latest.backup"
     BACKUP_DIR.mkdir(exist_ok=True)
@@ -193,9 +198,9 @@ def parse_client_recorded_at(value):
     if timestamp > 10_000_000_000:
         timestamp = timestamp / 1000
 
-    now = datetime.now()
+    now = get_local_now()
     try:
-        recorded_at = datetime.fromtimestamp(timestamp)
+        recorded_at = datetime.fromtimestamp(timestamp, ZoneInfo(APP_TIMEZONE)).replace(tzinfo=None)
     except (OverflowError, OSError, ValueError):
         return None
 
@@ -238,7 +243,7 @@ def save_location_point(cur, entry, lat, lng, accuracy, recorded_at=None):
     if accuracy_value is not None and accuracy_value > MAX_ACCEPTABLE_ACCURACY_M:
         return float(entry.get("distance_km") or 0), 0
 
-    recorded_at = recorded_at or datetime.now()
+    recorded_at = recorded_at or get_local_now()
 
     cur.execute(
         """
@@ -351,9 +356,9 @@ def current_month_bounds(month_arg=None):
         try:
             now = datetime.strptime(month_arg, "%Y-%m")
         except ValueError:
-            now = datetime.now()
+            now = get_local_now()
     else:
-        now = datetime.now()
+        now = get_local_now()
 
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     if month_start.month == 12:
@@ -374,7 +379,7 @@ def previous_month_start(month_start):
 
 
 def get_home_chart_data(user_id):
-    today = datetime.now().date()
+    today = get_local_now().date()
     start_day = today - timedelta(days=6)
 
     with get_db() as conn:
