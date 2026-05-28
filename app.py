@@ -238,33 +238,35 @@ def save_location_point(cur, entry, lat, lng, accuracy, recorded_at=None):
 
     cur.execute(
         """
+        SELECT lat, lng
+        FROM work_entry_locations
+        WHERE work_entry_id = %s
+        ORDER BY recorded_at DESC, id DESC
+        LIMIT 1
+        """,
+        (entry["id"],),
+    )
+    previous_point = cur.fetchone()
+
+    segment_km = 0
+    if previous_point:
+        segment_km = calculate_distance_km(
+            previous_point["lat"],
+            previous_point["lng"],
+            lat,
+            lng,
+        )
+        
+    distance_km = float(entry.get("distance_km") or 0) + segment_km
+
+    cur.execute(
+        """
         INSERT INTO work_entry_locations (work_entry_id, lat, lng, accuracy, recorded_at)
         VALUES (%s, %s, %s, %s, %s)
         """,
         (entry["id"], lat, lng, accuracy_value, recorded_at),
     )
     rowcount = cur.rowcount
-
-    cur.execute(
-        """
-        SELECT lat, lng
-        FROM work_entry_locations
-        WHERE work_entry_id = %s
-        ORDER BY recorded_at ASC, id ASC
-        LIMIT 1
-        """,
-        (entry["id"],),
-    )
-    first_point = cur.fetchone()
-
-    distance_km = 0
-    if first_point:
-        distance_km = calculate_distance_km(
-            first_point["lat"],
-            first_point["lng"],
-            lat,
-            lng,
-        )
 
     cur.execute(
         """
@@ -894,6 +896,18 @@ def dashboard():
     return redirect(url_for("home"))
 
 
+@app.route("/profile")
+@login_required
+def profile():
+    user = current_user()
+    if user is None:
+        session.clear()
+        flash("Your login session expired. Please login again.", "error")
+        return redirect(url_for("login"))
+
+    return render_template("profile.html", user=user)
+
+
 @app.route("/admin", methods=["GET", "POST"])
 @login_required
 @admin_required
@@ -1486,12 +1500,17 @@ def recalculate_entry_distance(cur, entry_id):
     if len(points) < 2:
         return 0
 
-    total_km = calculate_distance_km(
-        points[0]["lat"],
-        points[0]["lng"],
-        points[-1]["lat"],
-        points[-1]["lng"],
-    )
+    total_km = 0
+    previous = points[0]
+    for point in points[1:]:
+        segment_km = calculate_distance_km(
+            previous["lat"],
+            previous["lng"],
+            point["lat"],
+            point["lng"],
+        )
+        total_km += segment_km
+        previous = point
 
     cur.execute(
         """
