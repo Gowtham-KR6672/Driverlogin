@@ -445,17 +445,48 @@
         }
 
         .travel-login-card {
-            left: 51.5vw;
+            left: 87.9vw;
             right: auto;
-            top: 53vh;
+            top: 70vh;
             bottom: auto;
-            width: min(490px, 28vw);
-            min-width: 420px;
+            width: min(360px, 18vw);
+            min-width: 300px;
             transform: translate(-50%, -50%);
-            border-color: rgba(255, 255, 255, 0.34);
-            background: rgba(255, 255, 255, 0.16);
+            border: 0;
+            background: transparent;
             box-shadow: none;
-            backdrop-filter: blur(5px);
+            backdrop-filter: none;
+            padding: 0;
+            gap: 10px;
+        }
+
+        .travel-login-card .travel-forgot,
+        .travel-login-card .travel-note {
+            font-size: 10px;
+        }
+
+        .travel-login-card .travel-field-control {
+            border-color: rgba(255, 255, 255, 0.42);
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: none;
+            color: #ffffff;
+        }
+
+        .travel-login-card .travel-field-control:focus-within {
+            border-color: rgba(255, 255, 255, 0.72);
+            box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.10);
+        }
+
+        .travel-login-card .travel-field-control input {
+            color: #ffffff;
+        }
+
+        .travel-login-card .travel-field-control input::placeholder {
+            color: rgba(255, 255, 255, 0.70);
+        }
+
+        .travel-login-card .travel-password-toggle {
+            color: rgba(255, 255, 255, 0.78);
         }
 
         .travel-login-card .travel-card-heading h2 {
@@ -474,7 +505,8 @@
 <body>
 <section class="travel-login-screen">
     <video class="travel-video-background" autoplay muted loop playsinline>
-        <source src="/static/icons/Login_Page_Video.mp4" type="video/mp4">
+        <source src="/static/icons/Desktop_Login.mp4" type="video/mp4" media="(min-width: 768px)">
+        <source src="/static/icons/Login_Page_Video.mp4" type="video/mp4" media="(max-width: 767px)">
     </video>
 
     <header class="travel-brand">
@@ -486,11 +518,6 @@
     </header>
 
     <form method="post" id="loginForm" class="travel-login-card">
-        <div class="travel-card-heading">
-            <h2>Welcome Back!</h2>
-            <p>Login to continue your journey</p>
-        </div>
-
         <label class="travel-field">
             <span class="travel-field-control">
                 <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-7 8-7s8 3 8 7"/></svg>
@@ -510,8 +537,6 @@
 
         <input type="hidden" name="login_lat" id="loginLat">
         <input type="hidden" name="login_lng" id="loginLng">
-
-        <a class="travel-forgot" href="#" onclick="return false;">Forgot Password?</a>
 
         <button type="submit" class="travel-submit">
             Login

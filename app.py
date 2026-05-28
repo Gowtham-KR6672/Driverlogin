@@ -323,14 +323,31 @@ def parse_positive_int(value, default):
     return parsed if parsed > 0 else default
 
 
-def current_month_bounds():
-    now = datetime.now()
+def current_month_bounds(month_arg=None):
+    if month_arg:
+        try:
+            now = datetime.strptime(month_arg, "%Y-%m")
+        except ValueError:
+            now = datetime.now()
+    else:
+        now = datetime.now()
+
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     if month_start.month == 12:
         next_month = month_start.replace(year=month_start.year + 1, month=1)
     else:
         next_month = month_start.replace(month=month_start.month + 1)
     return month_start, next_month
+
+
+def month_key(month_start):
+    return month_start.strftime("%Y-%m")
+
+
+def previous_month_start(month_start):
+    if month_start.month == 1:
+        return month_start.replace(year=month_start.year - 1, month=12)
+    return month_start.replace(month=month_start.month - 1)
 
 
 def get_home_chart_data(user_id):
@@ -471,8 +488,8 @@ def set_admin_sidebar_users(users=None):
     return users
 
 
-def get_admin_home_stats():
-    month_start, next_month = current_month_bounds()
+def get_admin_home_stats(month_arg=None):
+    month_start, next_month = current_month_bounds(month_arg)
 
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -506,6 +523,9 @@ def get_admin_home_stats():
     total_seconds = int(month_summary["total_seconds"] or 0)
     return {
         "employee_count": employee_count,
+        "current_month": month_key(month_start),
+        "prev_month": month_key(previous_month_start(month_start)),
+        "next_month": month_key(next_month),
         "month_label": month_start.strftime("%B %Y"),
         "travel_hours_display": format_seconds(total_seconds),
         "travel_hours": round(total_seconds / 3600, 2),
@@ -929,7 +949,7 @@ def admin_dashboard():
         "admin.html",
         admin_tab="home",
         users=users,
-        home_stats=get_admin_home_stats(),
+        home_stats=get_admin_home_stats(request.args.get("month")),
         entries=[],
         selected_user=None,
         total={"display": "00:00:00", "hours": 0, "entry_count": 0},
