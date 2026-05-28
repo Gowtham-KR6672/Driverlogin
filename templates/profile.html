@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="profile-redesign-screen">
+    <div class="work-redesign-header">
+        <div>
+            <h2>Profile</h2>
+            <p>Account, app install, and session controls</p>
+        </div>
+    </div>
+
+    <div class="profile-redesign-card">
+        <div class="profile-redesign-hero">
+            <div class="profile-redesign-avatar" aria-hidden="true">
+                <svg viewBox="0 0 512 512" fill="currentColor"><path d="M364.032 355.035c-3.862-1.446-8.072-3.436-12.35-5.794l-71.57 98.935-5.09-64.814h-38.033l-5.091 64.814-71.569-98.935c-4.408 2.466-8.656 4.487-12.361 5.794-37.478 13.193-129.549 51.136-123.607 122.21C25.787 494.301 119.582 512 256.006 512c136.413 0 230.208-17.699 231.634-34.755 5.943-71.143-86.367-108.284-123.608-122.21z"/><path d="M171.501 208.271c5.21 29.516 13.966 55.554 25.494 68.38v35.587c0 .902-.158 1.852-.416 2.833l40.41 19.462v28.545h38.033v-28.545l40.39-19.452c-.258-.981-.416-1.932-.416-2.843v-35.587c11.548-12.826 20.304-38.864 25.514-68.38 12.143-4.338 19.096-11.281 27.762-41.658 9.231-32.358-13.876-31.258-13.876-31.258 18.69-61.873-5.922-120.022-47.124-115.753-28.426-49.73-123.627 11.36-153.48 7.102 0 17.055 7.112 29.842 7.112 29.842-10.379 19.69-6.378 58.951-3.446 78.809-1.704-.03-22.602.188-13.728 31.258 12.671 30.377 19.604 37.321 31.767 41.658z"/></svg>
+            </div>
+            <div>
+                <h3>{{ user.username }}</h3>
+                <p>{{ user.role|capitalize }} account</p>
+            </div>
+        </div>
+
+        <div class="profile-redesign-grid">
+            <article>
+                <span>Username</span>
+                <strong>{{ user.username }}</strong>
+            </article>
+            <article>
+                <span>Role</span>
+                <strong>{{ user.role|capitalize }}</strong>
+            </article>
+            <article>
+                <span>Timezone</span>
+                <strong>{{ app_timezone }}</strong>
+            </article>
+        </div>
+
+        <div class="profile-redesign-actions">
+            <button type="button" class="theme-toggle-button" id="themeToggleButton" aria-pressed="false">
+                <span class="theme-toggle-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 14.6A8.4 8.4 0 0 1 9.4 3a9 9 0 1 0 11.6 11.6Z"/></svg>
+                </span>
+                <span id="themeToggleLabel">Dark Mode</span>
+            </button>
+            <button type="button" class="install-app-button" id="installAppButton" hidden>Install App</button>
+            <a class="profile-logout-button" href="{{ url_for('logout') }}">Logout</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

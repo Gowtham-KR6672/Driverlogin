@@ -1,11 +1,9 @@
-const CACHE_NAME = "driver-login-v2";
+const CACHE_NAME = "driver-login-v3-routo";
 const APP_SHELL = [
   "/",
   "/static/style.css",
   "/static/manifest.json",
-  "/static/icons/app-icon.svg",
-  "/static/icons/App_icon-192.png",
-  "/static/icons/App_icon-512.png"
+  "/static/icons/Mobile_App_Icon.png"
 ];
 
 self.addEventListener("install", (event) => {

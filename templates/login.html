@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#06305e">
-<title>RoadSync</title>
+<title>Routo</title>
 <style>
     html,
     body {
@@ -269,6 +269,16 @@
         display: block;
     }
 
+    .travel-logo-pin img {
+        position: absolute;
+        inset: 6px;
+        width: 60px;
+        height: 60px;
+        object-fit: contain;
+        transform: rotate(45deg);
+        display: block;
+    }
+
     .travel-brand h1 {
         margin: 16px 0 5px;
         font-size: clamp(25px, 7.2vw, 32px);
@@ -390,6 +400,7 @@
         .travel-brand { padding-top: 34px; }
         .travel-logo-pin { width: 60px; height: 60px; }
         .travel-logo-pin svg { width: 46px !important; height: 46px !important; inset: 7px; }
+        .travel-logo-pin img { width: 50px; height: 50px; inset: 5px; }
         .travel-brand h1 { font-size: 24px; }
         .travel-scene { height: 66svh; min-height: 415px; }
         .travel-login-card { gap: 9px; padding: 18px 18px 14px; }
@@ -468,12 +479,7 @@
 
     <header class="travel-brand">
         <div class="travel-logo-pin" aria-hidden="true">
-            <svg viewBox="0 0 64 64" width="56" height="56">
-                <circle cx="32" cy="28" r="18" fill="#ffffff"/>
-                <circle cx="32" cy="28" r="12" fill="none" stroke="#08305f" stroke-width="5"/>
-                <circle cx="32" cy="28" r="4" fill="#08305f"/>
-                <path d="M22 31c4 7 16 7 20 0M32 16v12M20 26l12 2 12-2" fill="none" stroke="#08305f" stroke-width="4" stroke-linecap="round"/>
-            </svg>
+            <img src="/static/icons/Mobile_App_Icon.png" alt="">
         </div>
         <h1>Drive. Track. Travel.</h1>
         <p><span></span>Your Journey, Our Technology.<span></span></p>

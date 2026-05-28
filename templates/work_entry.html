@@ -5,52 +5,81 @@
 {% endblock %}
 
 {% block content %}
-<section class="panel">
-    <h2>Work Entry</h2>
-    <form method="post" class="work-form" id="workStartForm">
-        <label>
-            Work given person
-            <select name="work_given_person" id="workGivenPerson" required>
-                <option value="">Select person</option>
-                {% for person in work_people %}
-                    <option value="{{ person }}">{{ person }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label class="other-person-field" id="otherPersonField">
-            Enter person name
-            <input type="text" name="other_work_given_person" id="otherWorkGivenPerson">
-        </label>
-        <label>
-            Vehicle
-            <select name="vehicle_type" required>
-                <option value="">Select vehicle</option>
-                <option value="car">Car</option>
-                <option value="bike">Bike</option>
-            </select>
-        </label>
-        <label class="full">
-            Remarks
-            <textarea name="remarks" rows="4" required></textarea>
-        </label>
-        <input type="hidden" name="start_lat" id="startLat">
-        <input type="hidden" name="start_lng" id="startLng">
-        <p class="permission-note full" id="startLocationMessage">Location permission is required to start work and calculate travel distance.</p>
-        <div class="swipe full" data-swipe data-form-id="workStartForm" data-label="Swipe to Start Work" data-confirmed-label="Starting...">
-            <div class="swipe-track">
-                <div class="swipe-fill"></div>
-                <span class="swipe-label">Swipe to Start Work</span>
-                <button class="swipe-thumb" type="button" aria-label="Swipe to start work">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
-                </button>
+<section class="work-redesign-screen">
+    <div class="work-redesign-header">
+        <div>
+            <h2>Work Entry</h2>
+            <p>Create a new work entry to track your journey</p>
+        </div>
+        <a class="home-refresh" href="{{ url_for('work_entry') }}" aria-label="Refresh work entries">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.6 6.1"/><path d="M3 12A9 9 0 0 1 18.6 5.9"/><path d="M18 2v4h4"/><path d="M6 22v-4H2"/></svg>
+        </a>
+    </div>
+
+    <section class="work-entry-card">
+        <div class="work-entry-card-head">
+            <div class="work-entry-plus">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+            </div>
+            <div>
+                <strong>Start New Work</strong>
+                <span>Fill in the details below to get started</span>
             </div>
         </div>
-        <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">Start Work</button>
-    </form>
+
+        <form method="post" class="work-form work-redesign-form" id="workStartForm">
+            <label>
+                Work given person
+                <select name="work_given_person" id="workGivenPerson" required>
+                    <option value="">Select person</option>
+                    {% for person in work_people %}
+                        <option value="{{ person }}">{{ person }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                Vehicle Type
+                <select name="vehicle_type" required>
+                    <option value="">Select vehicle</option>
+                    <option value="car">Car</option>
+                    <option value="bike">Bike</option>
+                </select>
+            </label>
+            <label class="other-person-field full" id="otherPersonField">
+                Enter person name
+                <input type="text" name="other_work_given_person" id="otherWorkGivenPerson">
+            </label>
+            <label class="full">
+                Remarks
+                <textarea name="remarks" rows="5" maxlength="250" required placeholder="Add any remarks or notes..."></textarea>
+                <span class="work-char-count">0/250</span>
+            </label>
+            <input type="hidden" name="start_lat" id="startLat">
+            <input type="hidden" name="start_lng" id="startLng">
+            <p class="permission-note full" id="startLocationMessage">Location permission is required to start work and calculate travel distance.</p>
+            <div class="work-action-bar full">
+                <div class="swipe" data-swipe data-form-id="workStartForm" data-label="Start Work" data-confirmed-label="Starting...">
+                    <div class="swipe-track">
+                        <div class="swipe-fill"></div>
+                        <span class="swipe-label">Start Work</span>
+                        <button class="swipe-thumb" type="button" aria-label="Swipe to start work">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">Start Work</button>
+        </form>
+    </section>
 </section>
 
-<section class="panel">
-    <h2>Active Work</h2>
+<section class="panel active-work-panel">
+    <div class="screen-header">
+        <div>
+            <h2>Active Work</h2>
+            <p>Live distance and route while work is running</p>
+        </div>
+    </div>
     {% for entry in entries %}
         <div class="work-active-card">
             <dl class="work-active-grid">
@@ -150,6 +179,8 @@
     const workGivenPerson = document.getElementById("workGivenPerson");
     const otherPersonField = document.getElementById("otherPersonField");
     const otherWorkGivenPerson = document.getElementById("otherWorkGivenPerson");
+    const remarksInput = workStartForm.querySelector('textarea[name="remarks"]');
+    const workCharCount = workStartForm.querySelector(".work-char-count");
     const startLat = document.getElementById("startLat");
     const startLng = document.getElementById("startLng");
     const startLocationMessage = document.getElementById("startLocationMessage");
@@ -166,6 +197,17 @@
 
     workGivenPerson.addEventListener("change", toggleOtherPersonField);
     toggleOtherPersonField();
+
+    function updateWorkCharCount() {
+        if (remarksInput && workCharCount) {
+            workCharCount.textContent = `${remarksInput.value.length}/250`;
+        }
+    }
+
+    if (remarksInput) {
+        remarksInput.addEventListener("input", updateWorkCharCount);
+        updateWorkCharCount();
+    }
 
     function setStartLocationMessage(message, state) {
         startLocationMessage.textContent = message;

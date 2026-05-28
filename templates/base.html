@@ -7,71 +7,56 @@
     <meta name="format-detection" content="telephone=no">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="RoadSync">
+    <meta name="apple-mobile-web-app-title" content="Routo">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <title>RoadSync</title>
+    <title>Routo</title>
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-    <link rel="icon" href="{{ url_for('static', filename='icons/app-icon.svg') }}" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/App_icon-192.png') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='icons/Mobile_App_Icon.png') }}" type="image/png">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/Mobile_App_Icon.png') }}">
+    <script>
+        (function () {
+            const theme = localStorage.getItem("routoTheme");
+            if (theme === "dark") {
+                document.documentElement.dataset.theme = "dark";
+            }
+        })();
+    </script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=month-nav-1">
     {% block head_extra %}{% endblock %}
 </head>
 <body>
-    <header class="topbar">
-        <div>
-            <h1>RoadSync</h1>
-            <p>Work entry system</p>
-        </div>
-        {% if logged_in_user %}
-            <nav>
-                <button type="button" class="install-app-button" id="installAppButton" hidden>Install App</button>
-                <span>Time: {{ app_timezone }}</span>
-                <span>{{ logged_in_user.username }} ({{ logged_in_user.role }})</span>
-                <a href="{{ url_for('logout') }}">Logout</a>
-            </nav>
-        {% else %}
-            <nav>
-                <button type="button" class="install-app-button" id="installAppButton" hidden>Install App</button>
-            </nav>
-        {% endif %}
-    </header>
-
     <div class="{% if logged_in_user %}app-shell{% endif %}">
         {% if logged_in_user %}
-            <aside class="sidebar">
-                <div class="profile-card">
-                    <div class="avatar">{{ logged_in_user.username[:1].upper() }}</div>
+            <aside class="desktop-sidebar-nav" aria-label="Desktop navigation">
+                <div class="sidebar-brand">
+                    <img src="{{ url_for('static', filename='icons/Mobile_App_Icon.png') }}" alt="" aria-hidden="true">
                     <div>
-                        <h2>{{ logged_in_user.username }}</h2>
-                        <p>{{ logged_in_user.role|capitalize }} Profile</p>
+                        <h1>Routo</h1>
+                        <p>Driver tracking system</p>
                     </div>
                 </div>
-                {% if logged_in_user.role == 'admin' %}
-                    <nav class="side-nav">
-                        <a class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}" href="{{ url_for('admin_dashboard') }}">Home</a>
-                        <a class="{% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}">User</a>
-                        <a class="{% if request.endpoint == 'admin_work' %}active{% endif %}" href="{{ url_for('admin_work') }}">Work</a>
-                    </nav>
-                    <div class="sidebar-section-title">Created Users</div>
-                    <nav class="side-nav user-list-nav">
-                        {% for sidebar_user in admin_sidebar_users %}
-                            <a class="{% if request.endpoint == 'admin_work' and request.args.get('user_id')|int == sidebar_user.id %}active{% endif %}" href="{{ url_for('admin_work', user_id=sidebar_user.id) }}">
-                                {{ sidebar_user.username }}
-                            </a>
-                        {% else %}
-                            <span class="empty-sidebar">No users created</span>
-                        {% endfor %}
-                    </nav>
-                {% else %}
-                    <nav class="side-nav">
-                        <a class="{% if request.endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}">Home</a>
-                        <a class="{% if request.endpoint == 'work_entry' %}active{% endif %}" href="{{ url_for('work_entry') }}">Work Entry</a>
-                        <a class="{% if request.endpoint == 'history' %}active{% endif %}" href="{{ url_for('history') }}">History</a>
-                    </nav>
-                {% endif %}
+                <nav>
+                    {% if logged_in_user.role == 'admin' %}
+                        <a class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}" href="{{ url_for('admin_dashboard') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 10.8 12 3l9 7.8V21h-6v-6H9v6H3V10.8Z"/></svg></span><span class="nav-label">Home</span></a>
+                        <a class="{% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm6.5 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2 21a7 7 0 0 1 14 0H2Zm13.8 0a8.8 8.8 0 0 0-2.2-5.7A6 6 0 0 1 22 21h-6.2Z"/></svg></span><span class="nav-label">Users</span></a>
+                        <a class="{% if request.endpoint == 'admin_work' %}active{% endif %}" href="{{ url_for('admin_work') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 4h6a2 2 0 0 1 2 2v1h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2V6a2 2 0 0 1 2-2Zm0 3h6V6H9v1Z"/></svg></span><span class="nav-label">Entries</span></a>
+                        <a class="{% if request.endpoint == 'profile' %}active{% endif %}" href="{{ url_for('profile') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm-9 9a9 9 0 0 1 18 0H3Z"/></svg></span><span class="nav-label">Profile</span></a>
+                    {% else %}
+                        <a class="{% if request.endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 10.8 12 3l9 7.8V21h-6v-6H9v6H3V10.8Z"/></svg></span><span class="nav-label">Home</span></a>
+                        <a class="{% if request.endpoint == 'work_entry' %}active{% endif %}" href="{{ url_for('work_entry') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 3 22l9-4 9 4L12 2Z"/></svg></span><span class="nav-label">Work</span></a>
+                        <a class="{% if request.endpoint == 'history' %}active{% endif %}" href="{{ url_for('history') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 2h2v2h6V2h2v2h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3V2Zm13 8H4v10h16V10Z"/></svg></span><span class="nav-label">History</span></a>
+                        <a class="{% if request.endpoint == 'profile' %}active{% endif %}" href="{{ url_for('profile') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm-9 9a9 9 0 0 1 18 0H3Z"/></svg></span><span class="nav-label">Profile</span></a>
+                    {% endif %}
+                </nav>
+                <div class="desktop-sidebar-user">
+                    <span class="profile-avatar-svg" aria-hidden="true"><svg viewBox="0 0 512 512" fill="currentColor"><path d="M364.032 355.035c-3.862-1.446-8.072-3.436-12.35-5.794l-71.57 98.935-5.09-64.814h-38.033l-5.091 64.814-71.569-98.935c-4.408 2.466-8.656 4.487-12.361 5.794-37.478 13.193-129.549 51.136-123.607 122.21C25.787 494.301 119.582 512 256.006 512c136.413 0 230.208-17.699 231.634-34.755 5.943-71.143-86.367-108.284-123.608-122.21z"/><path d="M171.501 208.271c5.21 29.516 13.966 55.554 25.494 68.38v35.587c0 .902-.158 1.852-.416 2.833l40.41 19.462v28.545h38.033v-28.545l40.39-19.452c-.258-.981-.416-1.932-.416-2.843v-35.587c11.548-12.826 20.304-38.864 25.514-68.38 12.143-4.338 19.096-11.281 27.762-41.658 9.231-32.358-13.876-31.258-13.876-31.258 18.69-61.873-5.922-120.022-47.124-115.753-28.426-49.73-123.627 11.36-153.48 7.102 0 17.055 7.112 29.842 7.112 29.842-10.379 19.69-6.378 58.951-3.446 78.809-1.704-.03-22.602.188-13.728 31.258 12.671 30.377 19.604 37.321 31.767 41.658z"/></svg></span>
+                    <div>
+                        <small>Welcome back!</small>
+                        <strong>{{ logged_in_user.username }}</strong>
+                    </div>
+                </div>
             </aside>
         {% endif %}
-
         <main class="container">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
@@ -86,6 +71,21 @@
             {% block content %}{% endblock %}
         </main>
     </div>
+    {% if logged_in_user %}
+        <nav class="bottom-nav" aria-label="Primary navigation">
+            {% if logged_in_user.role == 'admin' %}
+                <a class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}" href="{{ url_for('admin_dashboard') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 10.8 12 3l9 7.8V21h-6v-6H9v6H3V10.8Z"/></svg></span><span class="nav-label">Home</span></a>
+                <a class="{% if request.endpoint == 'admin_users' %}active{% endif %}" href="{{ url_for('admin_users') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm6.5 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2 21a7 7 0 0 1 14 0H2Zm13.8 0a8.8 8.8 0 0 0-2.2-5.7A6 6 0 0 1 22 21h-6.2Z"/></svg></span><span class="nav-label">Users</span></a>
+                <a class="{% if request.endpoint == 'admin_work' %}active{% endif %}" href="{{ url_for('admin_work') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 4h6a2 2 0 0 1 2 2v1h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2V6a2 2 0 0 1 2-2Zm0 3h6V6H9v1Z"/></svg></span><span class="nav-label">Entries</span></a>
+                <a class="{% if request.endpoint == 'profile' %}active{% endif %}" href="{{ url_for('profile') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm-9 9a9 9 0 0 1 18 0H3Z"/></svg></span><span class="nav-label">Profile</span></a>
+            {% else %}
+                <a class="{% if request.endpoint == 'home' %}active{% endif %}" href="{{ url_for('home') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 10.8 12 3l9 7.8V21h-6v-6H9v6H3V10.8Z"/></svg></span><span class="nav-label">Home</span></a>
+                <a class="{% if request.endpoint == 'work_entry' %}active{% endif %}" href="{{ url_for('work_entry') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 3 22l9-4 9 4L12 2Z"/></svg></span><span class="nav-label">Work</span></a>
+                <a class="{% if request.endpoint == 'history' %}active{% endif %}" href="{{ url_for('history') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 2h2v2h6V2h2v2h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3V2Zm13 8H4v10h16V10Z"/></svg></span><span class="nav-label">History</span></a>
+                <a class="{% if request.endpoint == 'profile' %}active{% endif %}" href="{{ url_for('profile') }}"><span class="nav-svg-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm-9 9a9 9 0 0 1 18 0H3Z"/></svg></span><span class="nav-label">Profile</span></a>
+            {% endif %}
+        </nav>
+    {% endif %}
     {% block scripts %}{% endblock %}
     <script>
         if ("serviceWorker" in navigator) {
@@ -132,6 +132,34 @@
             installAppButton.addEventListener("click", function () {
                 alert("On iPhone or iPad, tap Share, then Add to Home Screen.");
             }, { once: true });
+        }
+
+        const themeToggleButton = document.getElementById("themeToggleButton");
+        const themeToggleLabel = document.getElementById("themeToggleLabel");
+
+        function updateThemeToggle(theme) {
+            if (!themeToggleButton || !themeToggleLabel) {
+                return;
+            }
+            const isDark = theme === "dark";
+            themeToggleButton.setAttribute("aria-pressed", String(isDark));
+            themeToggleLabel.textContent = isDark ? "Light Mode" : "Dark Mode";
+        }
+
+        updateThemeToggle(document.documentElement.dataset.theme || "light");
+
+        if (themeToggleButton) {
+            themeToggleButton.addEventListener("click", function () {
+                const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+                if (nextTheme === "dark") {
+                    document.documentElement.dataset.theme = "dark";
+                    localStorage.setItem("routoTheme", "dark");
+                } else {
+                    delete document.documentElement.dataset.theme;
+                    localStorage.setItem("routoTheme", "light");
+                }
+                updateThemeToggle(nextTheme);
+            });
         }
     </script>
 </body>
