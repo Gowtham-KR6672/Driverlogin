@@ -234,63 +234,8 @@ def save_location_point(cur, entry, lat, lng, accuracy, recorded_at=None):
     except (TypeError, ValueError):
         accuracy_value = None
 
-    existing_distance = float(entry["distance_km"] or 0)
     recorded_at = recorded_at or datetime.now()
 
-    if accuracy_value is not None and accuracy_value > MAX_ACCEPTABLE_ACCURACY_M:
-        return existing_distance, 0
-
-    cur.execute(
-        """
-        SELECT lat, lng, accuracy, recorded_at
-        FROM work_entry_locations
-        WHERE work_entry_id = %s
-        ORDER BY recorded_at DESC, id DESC
-        LIMIT 1
-        """,
-        (entry["id"],),
-    )
-    previous_point = cur.fetchone()
-    if not previous_point and entry.get("current_lat") is not None and entry.get("current_lng") is not None:
-        previous_point = {
-            "lat": entry["current_lat"],
-            "lng": entry["current_lng"],
-            "accuracy": accuracy_value,
-            "recorded_at": entry.get("location_updated_at") or entry.get("next_start_time"),
-        }
-
-    segment_km = 0
-    if previous_point:
-        segment_km = calculate_distance_km(
-            previous_point["lat"],
-            previous_point["lng"],
-            lat,
-            lng,
-        )
-        segment_m = segment_km * 1000
-        previous_recorded_at = previous_point.get("recorded_at")
-        if previous_recorded_at:
-            elapsed_seconds = max(
-                MIN_SEGMENT_SECONDS,
-                (recorded_at - previous_recorded_at).total_seconds(),
-            )
-            speed_mps = segment_m / elapsed_seconds
-
-            if (
-                speed_mps > MAX_REASONABLE_SPEED_MPS
-                or (elapsed_seconds <= SHORT_INTERVAL_SECONDS and segment_m > MAX_SHORT_INTERVAL_JUMP_M)
-            ):
-                return existing_distance, 0
-
-        prev_accuracy = float(previous_point["accuracy"] or FALLBACK_ACCURACY_M)
-        this_accuracy = accuracy_value if accuracy_value is not None else FALLBACK_ACCURACY_M
-        accuracy_floor = (prev_accuracy + this_accuracy) / 2
-
-        save_threshold = max(MIN_SAVE_DISTANCE_M, accuracy_floor * 0.6)
-        if segment_m < save_threshold:
-            return existing_distance, 0
-
-    distance_km = existing_distance + segment_km
     cur.execute(
         """
         INSERT INTO work_entry_locations (work_entry_id, lat, lng, accuracy, recorded_at)
@@ -298,6 +243,29 @@ def save_location_point(cur, entry, lat, lng, accuracy, recorded_at=None):
         """,
         (entry["id"], lat, lng, accuracy_value, recorded_at),
     )
+    rowcount = cur.rowcount
+
+    cur.execute(
+        """
+        SELECT lat, lng
+        FROM work_entry_locations
+        WHERE work_entry_id = %s
+        ORDER BY recorded_at ASC, id ASC
+        LIMIT 1
+        """,
+        (entry["id"],),
+    )
+    first_point = cur.fetchone()
+
+    distance_km = 0
+    if first_point:
+        distance_km = calculate_distance_km(
+            first_point["lat"],
+            first_point["lng"],
+            lat,
+            lng,
+        )
+
     cur.execute(
         """
         UPDATE work_entries
@@ -309,7 +277,7 @@ def save_location_point(cur, entry, lat, lng, accuracy, recorded_at=None):
         """,
         (lat, lng, recorded_at, distance_km, entry["id"]),
     )
-    return distance_km, cur.rowcount
+    return distance_km, rowcount
 
 
 def add_duration(entries):
@@ -1507,7 +1475,7 @@ def get_entry_route_points(entry_id):
 def recalculate_entry_distance(cur, entry_id):
     cur.execute(
         """
-        SELECT lat, lng, accuracy, recorded_at
+        SELECT lat, lng
         FROM work_entry_locations
         WHERE work_entry_id = %s
         ORDER BY recorded_at, id
@@ -1518,34 +1486,12 @@ def recalculate_entry_distance(cur, entry_id):
     if len(points) < 2:
         return 0
 
-    total_km = 0
-    previous = points[0]
-    for point in points[1:]:
-        segment_km = calculate_distance_km(
-            previous["lat"],
-            previous["lng"],
-            point["lat"],
-            point["lng"],
-        )
-        segment_m = segment_km * 1000
-        previous_recorded_at = previous.get("recorded_at")
-        recorded_at = point.get("recorded_at")
-        if previous_recorded_at and recorded_at:
-            elapsed_seconds = max(MIN_SEGMENT_SECONDS, (recorded_at - previous_recorded_at).total_seconds())
-            speed_mps = segment_m / elapsed_seconds
-            if (
-                speed_mps > MAX_REASONABLE_SPEED_MPS
-                or (elapsed_seconds <= SHORT_INTERVAL_SECONDS and segment_m > MAX_SHORT_INTERVAL_JUMP_M)
-            ):
-                previous = point
-                continue
-
-        prev_accuracy = float(previous["accuracy"] or FALLBACK_ACCURACY_M)
-        this_accuracy = float(point["accuracy"] or FALLBACK_ACCURACY_M)
-        count_threshold = max(MIN_COUNT_DISTANCE_M, (prev_accuracy + this_accuracy) / 2)
-        if segment_m >= count_threshold:
-            total_km += segment_km
-        previous = point
+    total_km = calculate_distance_km(
+        points[0]["lat"],
+        points[0]["lng"],
+        points[-1]["lat"],
+        points[-1]["lng"],
+    )
 
     cur.execute(
         """
@@ -1922,28 +1868,48 @@ def api_start_work():
 def api_end_work():
     data = request.get_json() or {}
     driver_id = data.get("driver_id")
+    end_lat = data.get("end_lat")
+    end_lng = data.get("end_lng")
+    remarks = data.get("remarks")
     
     if not driver_id:
         return jsonify({"success": False, "message": "driver_id required"}), 400
 
+    end_location = parse_location(end_lat, end_lng)
+
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id FROM work_entries WHERE user_id = %s AND end_time IS NULL LIMIT 1",
+                """
+                SELECT id, distance_km, current_lat, current_lng, location_updated_at, next_start_time 
+                FROM work_entries 
+                WHERE user_id = %s AND end_time IS NULL 
+                ORDER BY created_at DESC LIMIT 1
+                """,
                 (driver_id,)
             )
             entry = cur.fetchone()
             if not entry:
                 return jsonify({"success": False, "message": "No active work found"}), 404
 
-            cur.execute(
-                """
+            if end_location:
+                save_location_point(cur, entry, end_location[0], end_location[1], None)
+                recalculate_entry_distance(cur, entry["id"])
+
+            update_query = """
                 UPDATE work_entries
                 SET end_time = CURRENT_TIMESTAMP, tracking_token = NULL
-                WHERE id = %s
-                """,
-                (entry["id"],)
-            )
+            """
+            params = []
+            
+            if remarks is not None:
+                update_query += ", remarks = %s"
+                params.append(remarks)
+                
+            update_query += " WHERE id = %s"
+            params.append(entry["id"])
+
+            cur.execute(update_query, tuple(params))
         conn.commit()
 
     queue_database_backup("end_work")
