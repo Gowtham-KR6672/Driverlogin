@@ -37,6 +37,7 @@ BASE_DIR = Path(__file__).resolve().parent
 BACKUP_DIR = BASE_DIR / "backups"
 PG_DUMP_PATH = os.environ.get("PG_DUMP_PATH") or shutil.which("pg_dump")
 ADMIN_ENTRY_LIMIT = int(os.environ.get("ADMIN_ENTRY_LIMIT", "25"))
+ADMIN_PER_PAGE_OPTIONS = (10, 25, 50, 100)
 DB_POOL_MIN = int(os.environ.get("DB_POOL_MIN", "1"))
 DB_POOL_MAX = int(os.environ.get("DB_POOL_MAX", "5"))
 DB_CONNECT_TIMEOUT = int(os.environ.get("DB_CONNECT_TIMEOUT", "8"))
@@ -312,6 +313,14 @@ def format_seconds(total_seconds):
     hours, remainder = divmod(total_seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+
+def parse_positive_int(value, default):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
 
 
 def current_month_bounds():
@@ -978,6 +987,20 @@ def admin_users():
 @admin_required
 def admin_work():
     selected_user_id = request.args.get("user_id", "").strip()
+    per_page_options = ADMIN_PER_PAGE_OPTIONS
+    per_page = parse_positive_int(request.args.get("per_page"), ADMIN_ENTRY_LIMIT)
+    if per_page not in per_page_options:
+        per_page = ADMIN_ENTRY_LIMIT if ADMIN_ENTRY_LIMIT in per_page_options else per_page_options[1]
+    page = parse_positive_int(request.args.get("page"), 1)
+    pagination = {
+        "page": 1,
+        "total_pages": 1,
+        "has_previous": False,
+        "has_next": False,
+        "previous_page": 1,
+        "next_page": 1,
+    }
+
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -1000,18 +1023,6 @@ def admin_work():
                 selected_user = cur.fetchone()
 
             if selected_user:
-                cur.execute(
-                    """
-                    SELECT e.*, u.username
-                    FROM work_entries e
-                    JOIN users u ON u.id = e.user_id
-                    WHERE e.user_id = %s
-                    ORDER BY e.created_at DESC
-                    LIMIT %s
-                    """,
-                    (selected_user["id"], ADMIN_ENTRY_LIMIT),
-                )
-                entries = add_duration(cur.fetchall())
                 cur.execute(
                     """
                     SELECT
@@ -1040,6 +1051,29 @@ def admin_work():
                     "hours": round(int(summary["total_seconds"] or 0) / 3600, 2),
                     "entry_count": int(summary["entry_count"] or 0),
                 }
+                total_pages = max(math.ceil(total["entry_count"] / per_page), 1)
+                page = min(page, total_pages)
+                offset = (page - 1) * per_page
+                pagination = {
+                    "page": page,
+                    "total_pages": total_pages,
+                    "has_previous": page > 1,
+                    "has_next": page < total_pages,
+                    "previous_page": max(page - 1, 1),
+                    "next_page": min(page + 1, total_pages),
+                }
+                cur.execute(
+                    """
+                    SELECT e.*, u.username
+                    FROM work_entries e
+                    JOIN users u ON u.id = e.user_id
+                    WHERE e.user_id = %s
+                    ORDER BY e.created_at DESC
+                    LIMIT %s OFFSET %s
+                    """,
+                    (selected_user["id"], per_page, offset),
+                )
+                entries = add_duration(cur.fetchall())
             else:
                 entries = []
                 total = {"display": "00:00:00", "hours": 0, "entry_count": 0}
@@ -1071,6 +1105,9 @@ def admin_work():
         user_summaries=user_summaries,
         active_location=active_location,
         home_stats=None,
+        per_page=per_page,
+        per_page_options=per_page_options,
+        pagination=pagination,
     )
 
 
