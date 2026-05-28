@@ -573,6 +573,11 @@ button:active {
 .empty-state {
     background: rgba(232, 240, 255, 0.62);
     border: 1px solid rgba(37, 99, 235, 0.16);
+}
+
+.mobile-status-badge {
+    display: none;
+}
     border-radius: 8px;
     color: #1f3a5f;
     font-size: 13px;
@@ -1015,15 +1020,43 @@ tbody tr:last-child td {
         padding: 14px;
     }
 
-    .registered-user-meta,
-    .registered-user-actions,
-    .user-card-reset-form {
+    .registered-user-meta {
         grid-template-columns: 1fr;
     }
 
-    .registered-user-meta div + div {
-        border-left: 0;
-        border-top: 1px solid rgba(214, 221, 229, 0.86);
+    .desktop-status-meta {
+        display: none !important;
+    }
+
+    .mobile-status-badge {
+        display: inline-block;
+        font-size: 10px;
+        padding: 4px 8px;
+        border-radius: 99px;
+        font-weight: 700;
+        background: #eff6ff;
+        color: #1d4ed8;
+        text-transform: uppercase;
+        vertical-align: middle;
+    }
+
+    .mobile-status-badge.status-protected {
+        background: #fef2f2;
+        color: #991b1b;
+    }
+
+    .registered-user-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .user-card-reset-form {
+        display: contents;
+    }
+    
+    .user-card-reset-form input {
+        grid-column: 1 / -1;
     }
 
     .user-card-reset-form button,
@@ -3749,12 +3782,19 @@ tbody tr:hover {
     padding: 8px 8px 28px;
 }
 
-.home-dashboard-top,
-.admin-home-top {
+.home-dashboard-top {
     align-items: center;
     display: grid;
     gap: 18px;
     grid-template-columns: 54px 1fr 48px;
+    margin-bottom: 26px;
+}
+
+.admin-home-top {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+    gap: 18px;
     margin-bottom: 26px;
 }
 
@@ -5366,9 +5406,12 @@ button:hover,
         padding: 0 0 22px;
     }
 
-    .home-dashboard-top,
-    .admin-home-top {
+    .home-dashboard-top {
         grid-template-columns: 44px 1fr 44px;
+        margin-bottom: 20px;
+    }
+
+    .admin-home-top {
         margin-bottom: 20px;
     }
 
@@ -5385,12 +5428,30 @@ button:hover,
     }
 
     .home-metric-grid,
-    .admin-home-metrics {
+    .admin-home-metrics,
+    .admin-entry-summary-grid {
         grid-template-columns: 1fr;
     }
 
     .home-metric-card {
-        padding: 22px;
+        padding: 16px;
+        gap: 16px;
+        min-height: auto;
+    }
+    
+    .home-metric-icon {
+        flex: 0 0 52px;
+        height: 52px;
+        width: 52px;
+    }
+    
+    .home-metric-icon svg {
+        height: 24px;
+        width: 24px;
+    }
+    
+    .home-metric-card strong {
+        font-size: 22px;
     }
 
     .home-recent-card {
@@ -5465,7 +5526,8 @@ button:hover,
         flex-direction: column;
     }
 
-    .history-redesign-card {
+    .history-redesign-card,
+    .admin-entries-redesign .history-redesign-card {
         grid-template-columns: 1fr;
         padding: 22px 20px;
     }
@@ -5476,7 +5538,7 @@ button:hover,
     }
 
     .history-redesign-card-head {
-        grid-template-columns: 56px minmax(0, 1fr);
+        grid-template-columns: 56px minmax(0, 1fr) auto;
     }
 
     .history-redesign-icon {
@@ -5484,20 +5546,22 @@ button:hover,
         width: 54px;
     }
 
-    .history-redesign-icons {
-        grid-column: 1 / -1;
-        justify-content: flex-start;
+    .history-redesign-metrics {
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
     }
 
-    .history-redesign-metrics {
-        grid-template-columns: 1fr;
+    .history-redesign-metrics > div:first-child {
+        grid-column: 1 / -1;
+        border-bottom: 1px solid var(--app-line);
+        padding-bottom: 16px;
     }
 
     .history-redesign-metrics > div + div {
         border-left: 0;
-        border-top: 1px solid var(--app-line);
+        border-top: 0;
         padding-left: 0;
-        padding-top: 16px;
+        padding-top: 0;
     }
 
     .history-redesign-remarks {

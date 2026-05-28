@@ -148,7 +148,10 @@
                             <div class="registered-user-avatar">{{ user.username[:1].upper() }}</div>
                             <div class="registered-user-title">
                                 <h3>{{ user.username }}</h3>
-                                <span class="role-badge role-{{ user.role }}">{{ user.role }}</span>
+                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 2px;">
+                                    <span class="role-badge role-{{ user.role }}">{{ user.role }}</span>
+                                    <span class="mobile-status-badge {{ 'status-protected' if user.role != 'user' else '' }}">{{ "Manageable" if user.role == "user" else "Protected" }}</span>
+                                </div>
                             </div>
                         </div>
                         <dl class="registered-user-meta">
@@ -156,7 +159,7 @@
                                 <dt>Created</dt>
                                 <dd>{{ user.created_at.strftime("%Y-%m-%d %H:%M") }}</dd>
                             </div>
-                            <div>
+                            <div class="desktop-status-meta">
                                 <dt>Status</dt>
                                 <dd>{{ "Manageable" if user.role == "user" else "Protected" }}</dd>
                             </div>

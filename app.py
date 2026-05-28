@@ -235,11 +235,14 @@ def save_location_point(cur, entry, lat, lng, accuracy, recorded_at=None):
     except (TypeError, ValueError):
         accuracy_value = None
 
+    if accuracy_value is not None and accuracy_value > MAX_ACCEPTABLE_ACCURACY_M:
+        return float(entry.get("distance_km") or 0), 0
+
     recorded_at = recorded_at or datetime.now()
 
     cur.execute(
         """
-        SELECT lat, lng
+        SELECT lat, lng, recorded_at
         FROM work_entry_locations
         WHERE work_entry_id = %s
         ORDER BY recorded_at DESC, id DESC
@@ -251,12 +254,32 @@ def save_location_point(cur, entry, lat, lng, accuracy, recorded_at=None):
 
     segment_km = 0
     if previous_point:
+        prev_time = previous_point.get("recorded_at")
+        if prev_time:
+            time_diff = (recorded_at - prev_time).total_seconds()
+            if time_diff < MIN_SEGMENT_SECONDS:
+                return float(entry.get("distance_km") or 0), 0
+        else:
+            time_diff = 0
+
         segment_km = calculate_distance_km(
             previous_point["lat"],
             previous_point["lng"],
             lat,
             lng,
         )
+        
+        if prev_time:
+            segment_m = segment_km * 1000.0
+            if segment_m < MIN_SAVE_DISTANCE_M:
+                return float(entry.get("distance_km") or 0), 0
+                
+            speed_mps = segment_m / time_diff if time_diff > 0 else 0
+            if speed_mps > MAX_REASONABLE_SPEED_MPS:
+                return float(entry.get("distance_km") or 0), 0
+                
+            if time_diff < SHORT_INTERVAL_SECONDS and segment_m > MAX_SHORT_INTERVAL_JUMP_M:
+                return float(entry.get("distance_km") or 0), 0
         
     distance_km = float(entry.get("distance_km") or 0) + segment_km
 
@@ -936,6 +959,32 @@ def profile():
 
     return render_template("profile.html", user=user)
 
+@app.route("/admin/live")
+@login_required
+@admin_required
+def admin_live():
+    users = set_admin_sidebar_users()
+    
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT e.id, e.user_id, u.username, e.vehicle_type, e.next_start_time, e.distance_km, e.current_lat, e.current_lng, e.location_updated_at, e.work_given_person
+                FROM work_entries e
+                JOIN users u ON u.id = e.user_id
+                WHERE e.end_time IS NULL
+                ORDER BY e.location_updated_at DESC NULLS LAST, e.created_at DESC
+                """
+            )
+            active_entries = cur.fetchall()
+
+    return render_template(
+        "admin_live.html",
+        admin_tab="live",
+        users=users,
+        active_entries=active_entries
+    )
+
 
 @app.route("/admin", methods=["GET", "POST"])
 @login_required
@@ -1546,7 +1595,7 @@ def get_entry_route_points(entry_id):
 def recalculate_entry_distance(cur, entry_id):
     cur.execute(
         """
-        SELECT lat, lng
+        SELECT lat, lng, recorded_at
         FROM work_entry_locations
         WHERE work_entry_id = %s
         ORDER BY recorded_at, id
@@ -1560,12 +1609,28 @@ def recalculate_entry_distance(cur, entry_id):
     total_km = 0
     previous = points[0]
     for point in points[1:]:
+        time_diff = (point["recorded_at"] - previous["recorded_at"]).total_seconds()
+        if time_diff < MIN_SEGMENT_SECONDS:
+            continue
+
         segment_km = calculate_distance_km(
             previous["lat"],
             previous["lng"],
             point["lat"],
             point["lng"],
         )
+        
+        segment_m = segment_km * 1000.0
+        if segment_m < MIN_SAVE_DISTANCE_M:
+            continue
+            
+        speed_mps = segment_m / time_diff if time_diff > 0 else 0
+        if speed_mps > MAX_REASONABLE_SPEED_MPS:
+            continue
+            
+        if time_diff < SHORT_INTERVAL_SECONDS and segment_m > MAX_SHORT_INTERVAL_JUMP_M:
+            continue
+
         total_km += segment_km
         previous = point
 
@@ -2160,6 +2225,15 @@ def handle_driver_location_update(data):
     driver_id = data.get('driver_id')
     if driver_id:
         emit('location_updated', data, room=f"driver_{driver_id}")
+        emit('location_updated', data, room="admin_live")
+
+@socketio.on('join_admin_live')
+def handle_join_admin_live():
+    join_room("admin_live")
+
+@socketio.on('leave_admin_live')
+def handle_leave_admin_live():
+    leave_room("admin_live")
 
 @socketio.on('join_driver_room')
 def handle_join_room(data):

@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+    .live-map-wrapper {
+        position: relative;
+        height: calc(100vh - 240px);
+        min-height: 400px;
+        width: 100%;
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid rgba(219, 231, 246, 0.95);
+        box-shadow: var(--app-shadow-soft);
+    }
+    #live-map {
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+    }
+    .live-status-overlay {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        z-index: 1000;
+        background: white;
+        padding: 12px 16px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    .live-indicator-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #0b7a75;
+        font-weight: 600;
+        font-size: 14px;
+    }
+    .live-indicator {
+        width: 8px;
+        height: 8px;
+        background: #22c55e;
+        border-radius: 50%;
+        display: inline-block;
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+    }
+    .marker-label {
+        font-weight: bold;
+        color: #0b7a75;
+        text-shadow: 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;
+        font-size: 14px;
+        white-space: nowrap;
+        margin-top: 5px;
+        text-align: center;
+    }
+    .header-controls {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+    .driver-select-control {
+        min-width: 200px;
+        display: flex;
+        align-items: center;
+        background: #ffffff;
+        border: 1px solid var(--app-line);
+        border-radius: 999px;
+        padding: 0 16px;
+        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.05);
+    }
+    .driver-select-control select {
+        width: 100%;
+        border: none;
+        background: transparent;
+        padding: 10px 0;
+        font-weight: 500;
+        outline: none;
+        cursor: pointer;
+        color: var(--app-text);
+        box-shadow: none;
+    }
+    
+    @media (max-width: 768px) {
+        .work-redesign-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 16px;
+        }
+        .header-controls {
+            width: 100%;
+            justify-content: space-between;
+        }
+        .driver-select-control {
+            flex: 1;
+        }
+        .live-map-wrapper {
+            height: calc(100vh - 280px);
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="admin-home-screen">
+    <div class="work-redesign-header">
+        <div>
+            <h2>Live Tracking</h2>
+            <p>Monitor drivers in real-time</p>
+        </div>
+        <div class="header-controls">
+            <div class="live-indicator-wrapper">
+                <span class="live-indicator"></span> Live
+            </div>
+            
+            <div class="driver-select-control">
+                <select onchange="if(this.value) focusDriver(this.value)">
+                    <option value="">Select a driver...</option>
+                    {% for entry in active_entries %}
+                        <option value="{{ entry.user_id }}">{{ entry.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="live-map-wrapper">
+        <div id="live-map"></div>
+        
+        <div class="live-status-overlay">
+            <div class="live-indicator-wrapper">
+                <span class="live-indicator"></span> Live
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; color: #64748b; font-size: 12px; font-weight: 500;">
+                <span id="last-updated-text">Last updated: just now</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h.01"/><path d="M7 20v-4"/><path d="M12 20v-8"/><path d="M17 20V8"/><path d="M22 4v16"/></svg>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+    const activeEntries = {{ active_entries | tojson }};
+    const map = L.map('live-map', { zoomControl: false }).setView([11.0168, 76.9558], 12); // Default center
+    
+    // Add zoom control to top left
+    L.control.zoom({
+        position: 'topleft'
+    }).addTo(map);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    const markers = {};
+    const bounds = L.latLngBounds();
+
+    function createDriverMarker(entry) {
+        const lat = entry.current_lat;
+        const lng = entry.current_lng;
+        
+        if (!lat || !lng) return null;
+
+        const marker = L.marker([lat, lng]).addTo(map);
+        
+        const distKm = parseFloat(entry.distance_km || 0).toFixed(2);
+        marker.bindPopup(`<b>${entry.username}</b><br>${entry.vehicle_type}<br>Dist: <span id="popup-dist-${entry.user_id}">${distKm}</span> km`);
+        
+        marker.bindTooltip(entry.username, {
+            permanent: true, 
+            direction: 'bottom', 
+            className: 'marker-label', 
+            offset: [0, 10]
+        }).openTooltip();
+
+        bounds.extend([lat, lng]);
+        return marker;
+    }
+
+    activeEntries.forEach(entry => {
+        const marker = createDriverMarker(entry);
+        if (marker) {
+            markers[entry.user_id] = marker;
+        }
+    });
+
+    if (Object.keys(markers).length > 0) {
+        map.fitBounds(bounds, {padding: [50, 50], maxZoom: 16});
+    }
+
+    window.focusDriver = function(userId) {
+        const marker = markers[userId];
+        if (marker) {
+            map.flyTo(marker.getLatLng(), 16);
+            marker.openPopup();
+        }
+    };
+    
+    function updateLastUpdated() {
+        const el = document.getElementById('last-updated-text');
+        if (el) {
+            const now = new Date();
+            el.innerText = `Last updated: ${now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}`;
+        }
+    }
+
+    const socket = io();
+    
+    socket.on('connect', () => {
+        console.log('Connected to WebSocket');
+        socket.emit('join_admin_live');
+    });
+
+    socket.on('location_updated', (data) => {
+        console.log('Location update received:', data);
+        const userId = data.driver_id;
+        const lat = data.lat;
+        const lng = data.lng;
+        const totalDistance = data.total_distance_km;
+
+        if (markers[userId]) {
+            markers[userId].setLatLng([lat, lng]);
+            
+            if (totalDistance !== undefined) {
+                const distStr = parseFloat(totalDistance).toFixed(2);
+                const popupEl = document.getElementById(`popup-dist-${userId}`);
+                if (popupEl) popupEl.innerText = distStr;
+            }
+            updateLastUpdated();
+        } else {
+            // New driver started working
+            console.log("New driver update received for ID:", userId);
+            // Optional: could dynamically add marker here, but requires full entry info.
+            // For now just update the timestamp
+            updateLastUpdated();
+        }
+    });
+</script>
+{% endblock %}
