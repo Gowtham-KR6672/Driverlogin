@@ -1,7 +1,7 @@
 package com.example.drivertracking.util
 
 object Constants {
-    const val BASE_URL = "https://driverlogin-cpx6.onrender.com"
+    const val BASE_URL = "https://driverlogin-4rif.onrender.com"
     const val PREFS_FILE = "driver_tracking_secure_prefs"
     const val KEY_AUTH_TOKEN = "auth_token"
     const val KEY_DRIVER_ID = "driver_id"
