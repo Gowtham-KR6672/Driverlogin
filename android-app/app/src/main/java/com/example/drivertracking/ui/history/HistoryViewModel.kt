@@ -31,6 +31,9 @@ class HistoryViewModel @Inject constructor(
     
     private var allEntries: List<HistoryEntry> = emptyList()
 
+    // The route map WebView loads a server page that needs the same token as the API.
+    fun authToken(): String? = sessionManager.getAuthToken()
+
     fun fetchHistory() {
         val driverId = sessionManager.getDriverId()
         if (driverId == -1) return

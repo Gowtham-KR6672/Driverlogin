@@ -162,7 +162,7 @@ fun HistoryScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(state.entries) { entry ->
-                    HistoryCard(entry, context)
+                    HistoryCard(entry, context, viewModel.authToken())
                 }
                 item { Spacer(modifier = Modifier.height(16.dp)) }
             }
@@ -171,12 +171,12 @@ fun HistoryScreen(
 }
 
 @Composable
-fun HistoryCard(entry: HistoryEntry, context: android.content.Context) {
+fun HistoryCard(entry: HistoryEntry, context: android.content.Context, authToken: String?) {
     var showMapDialog by remember { mutableStateOf(false) }
 
     if (showMapDialog) {
         val url = com.example.drivertracking.util.Constants.BASE_URL + "/webview/route/${entry.id}"
-        RouteMapDialog(url = url, onDismiss = { showMapDialog = false })
+        RouteMapDialog(url = url, authToken = authToken, onDismiss = { showMapDialog = false })
     }
 
     Card(
@@ -297,7 +297,7 @@ fun DetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Stri
 }
 
 @Composable
-fun RouteMapDialog(url: String, onDismiss: () -> Unit) {
+fun RouteMapDialog(url: String, authToken: String?, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).aspectRatio(0.9f),
@@ -327,7 +327,8 @@ fun RouteMapDialog(url: String, onDismiss: () -> Unit) {
                             settings.useWideViewPort = true
                             settings.loadWithOverviewMode = true
                             webViewClient = WebViewClient()
-                            loadUrl(url)
+                            val headers = authToken?.let { mapOf("Authorization" to "Bearer $it") } ?: emptyMap()
+                            loadUrl(url, headers)
                         }
                     },
                     modifier = Modifier.weight(1f).fillMaxWidth()

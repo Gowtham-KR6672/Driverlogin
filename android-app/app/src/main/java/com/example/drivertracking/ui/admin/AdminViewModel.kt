@@ -3,7 +3,6 @@ package com.example.drivertracking.ui.admin
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.drivertracking.data.remote.*
-import com.example.drivertracking.util.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -11,13 +10,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+// Admin calls are authorized by the Bearer token that AppModule adds to every request.
 @HiltViewModel
 class AdminViewModel @Inject constructor(
-    private val api: LocationApi,
-    private val sessionManager: SessionManager
+    private val api: LocationApi
 ) : ViewModel() {
-
-    private val adminId: Int get() = sessionManager.getAuthToken()?.toIntOrNull() ?: -1
 
     // Dashboard state
     private val _dashboardState = MutableStateFlow<AdminDashboardResponse?>(null)
@@ -32,10 +29,9 @@ class AdminViewModel @Inject constructor(
     val workState = _workState.asStateFlow()
 
     fun fetchDashboard() {
-        if (adminId == -1) return
         viewModelScope.launch {
             try {
-                val response = api.getAdminDashboard(adminId)
+                val response = api.getAdminDashboard()
                 if (response.isSuccessful && response.body()?.success == true) {
                     _dashboardState.value = response.body()
                 }
@@ -46,10 +42,9 @@ class AdminViewModel @Inject constructor(
     }
 
     fun fetchUsers() {
-        if (adminId == -1) return
         viewModelScope.launch {
             try {
-                val response = api.getAdminUsers(adminId)
+                val response = api.getAdminUsers()
                 if (response.isSuccessful && response.body()?.success == true) {
                     _usersState.value = response.body()?.users
                 }
@@ -60,36 +55,31 @@ class AdminViewModel @Inject constructor(
     }
 
     fun createUser(username: String, pass: String) {
-        if (adminId == -1) return
         viewModelScope.launch {
-            val payload = mapOf("admin_id" to adminId.toString(), "username" to username, "password" to pass)
+            val payload = mapOf("username" to username, "password" to pass)
             api.createAdminUser(payload)
             fetchUsers()
         }
     }
 
     fun resetPassword(userId: Int, newPass: String) {
-        if (adminId == -1) return
         viewModelScope.launch {
-            val payload = mapOf("admin_id" to adminId.toString(), "new_password" to newPass)
+            val payload = mapOf("new_password" to newPass)
             api.resetUserPassword(userId, payload)
         }
     }
 
     fun deleteUser(userId: Int) {
-        if (adminId == -1) return
         viewModelScope.launch {
-            val payload = mapOf("admin_id" to adminId.toString())
-            api.deleteUser(userId, payload)
+            api.deleteUser(userId, emptyMap())
             fetchUsers()
         }
     }
 
     fun fetchWorkEntries(userId: Int) {
-        if (adminId == -1) return
         viewModelScope.launch {
             try {
-                val response = api.getAdminWork(adminId, userId)
+                val response = api.getAdminWork(userId)
                 if (response.isSuccessful && response.body()?.success == true) {
                     _workState.value = response.body()?.entries
                 }

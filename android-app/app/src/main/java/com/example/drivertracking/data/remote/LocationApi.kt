@@ -34,10 +34,10 @@ interface LocationApi {
     // --- Admin APIs ---
 
     @GET("/api/admin/dashboard")
-    suspend fun getAdminDashboard(@retrofit2.http.Query("admin_id") adminId: Int): Response<AdminDashboardResponse>
+    suspend fun getAdminDashboard(): Response<AdminDashboardResponse>
 
     @GET("/api/admin/users")
-    suspend fun getAdminUsers(@retrofit2.http.Query("admin_id") adminId: Int): Response<AdminUsersResponse>
+    suspend fun getAdminUsers(): Response<AdminUsersResponse>
 
     @POST("/api/admin/users")
     suspend fun createAdminUser(@Body payload: Map<String, String>): Response<GenericResponse>
@@ -56,7 +56,6 @@ interface LocationApi {
 
     @GET("/api/admin/work")
     suspend fun getAdminWork(
-        @retrofit2.http.Query("admin_id") adminId: Int,
         @retrofit2.http.Query("user_id") userId: Int
     ): Response<AdminWorkResponse>
 }

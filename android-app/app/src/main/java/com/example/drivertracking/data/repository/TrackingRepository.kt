@@ -4,13 +4,15 @@ import com.example.drivertracking.data.local.LocationDao
 import com.example.drivertracking.data.local.LocationEntity
 import com.example.drivertracking.data.remote.LocationApi
 import com.example.drivertracking.data.remote.LocationPayload
+import com.example.drivertracking.util.SessionManager
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class TrackingRepository @Inject constructor(
     private val locationApi: LocationApi,
-    private val locationDao: LocationDao
+    private val locationDao: LocationDao,
+    private val sessionManager: SessionManager
 ) {
 
     suspend fun saveLocationLocally(entity: LocationEntity) {
@@ -28,7 +30,10 @@ class TrackingRepository @Inject constructor(
     }
 
     suspend fun syncOfflineLocations(): Boolean {
-        val pending = locationDao.getAllPendingLocations()
+        // The server only accepts points for the logged-in driver; points recorded under
+        // another login stay queued until that driver logs in again.
+        val driverId = sessionManager.getDriverId()
+        val pending = locationDao.getAllPendingLocations().filter { it.driverId == driverId }
         if (pending.isEmpty()) return true
 
         var allSynced = true

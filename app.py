@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import io
 import math
 import os
@@ -19,6 +20,7 @@ import psycopg2.pool
 from psycopg2 import OperationalError
 from flask import Flask, Response, flash, g, jsonify, redirect, render_template, request, session, url_for
 from dotenv import load_dotenv
+from itsdangerous import BadSignature, URLSafeTimedSerializer
 from werkzeug.security import check_password_hash, generate_password_hash
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
@@ -841,6 +843,73 @@ def admin_required(view):
         if not user or user["role"] != "admin":
             flash("Admin access required.", "error")
             return redirect(url_for("dashboard"))
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+# Mobile app authentication: /api/login hands out a signed token that the app
+# sends back as "Authorization: Bearer <token>".
+API_TOKEN_MAX_AGE = 30 * 24 * 60 * 60  # seconds
+api_token_serializer = URLSafeTimedSerializer(app.secret_key, salt="mobile-api-token")
+
+
+def password_fingerprint(password_hash):
+    # Stored in the token so that changing a password invalidates older tokens.
+    return hashlib.sha256(password_hash.encode()).hexdigest()[:16]
+
+
+def issue_api_token(user):
+    return api_token_serializer.dumps(
+        {"uid": user["id"], "pwd": password_fingerprint(user["password_hash"])}
+    )
+
+
+def user_from_api_token(token):
+    if not token:
+        return None
+    try:
+        data = api_token_serializer.loads(token, max_age=API_TOKEN_MAX_AGE)
+    except BadSignature:
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, username, role, created_at, password_hash FROM users WHERE id = %s",
+                (data.get("uid"),),
+            )
+            user = cur.fetchone()
+
+    if not user or password_fingerprint(user["password_hash"]) != data.get("pwd"):
+        return None
+    return user
+
+
+def bearer_token():
+    scheme, _, token = request.headers.get("Authorization", "").partition(" ")
+    return token.strip() if scheme.lower() == "bearer" else None
+
+
+def api_login_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        g.api_user = user_from_api_token(bearer_token())
+        if g.api_user is None:
+            return jsonify({"success": False, "message": "Login required"}), 401
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def api_admin_required(view):
+    @wraps(view)
+    @api_login_required
+    def wrapped(*args, **kwargs):
+        if g.api_user["role"] != "admin":
+            return jsonify({"success": False, "message": "Unauthorized"}), 403
         return view(*args, **kwargs)
 
     return wrapped
@@ -1687,10 +1756,19 @@ def work_entry_route(entry_id):
     )
 
 @app.route("/webview/route/<int:entry_id>")
+@api_login_required
 def webview_route_viewer(entry_id):
+    user = g.api_user
+    params = [entry_id]
+    user_filter = ""
+
+    if user["role"] != "admin":
+        user_filter = "AND user_id = %s"
+        params.append(user["id"])
+
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id FROM work_entries WHERE id = %s", (entry_id,))
+            cur.execute(f"SELECT id FROM work_entries WHERE id = %s {user_filter}", params)
             entry = cur.fetchone()
 
     if not entry:
@@ -1832,7 +1910,7 @@ def api_login():
 
     if user and check_password_hash(user["password_hash"], password):
         return jsonify({
-            "token": str(user["id"]),
+            "token": issue_api_token(user),
             "driver_id": user["id"],
             "name": user["username"],
             "role": user["role"],
@@ -1847,14 +1925,20 @@ def api_login():
 
 
 @app.route("/api/driver/location", methods=["POST"])
+@api_login_required
 def api_driver_location():
     data = request.get_json() or {}
-    driver_id = data.get("driver_id")
+    driver_id = g.api_user["id"]
     lat = data.get("latitude")
     lng = data.get("longitude")
     accuracy = data.get("accuracy")
 
-    if not driver_id or lat is None or lng is None:
+    # Points queued offline under another login must not land on this user's work entry.
+    claimed_driver_id = data.get("driver_id")
+    if claimed_driver_id is not None and str(claimed_driver_id) != str(driver_id):
+        return jsonify({"success": False, "message": "driver_id does not match the logged-in user"}), 403
+
+    if lat is None or lng is None:
         return jsonify({"success": False, "message": "Missing parameters"}), 400
 
     with get_db() as conn:
@@ -1890,13 +1974,11 @@ def api_driver_location():
                 return jsonify({"success": False, "message": "No active work entry"}), 404
 
 @app.route("/api/home", methods=["GET"])
+@api_login_required
 def api_home():
-    driver_id = request.args.get("driver_id")
+    driver_id = g.api_user["id"]
     year_arg = request.args.get("year")
     month_arg = request.args.get("month")
-
-    if not driver_id:
-        return jsonify({"success": False, "message": "driver_id required"}), 400
 
     if year_arg and month_arg:
         try:
@@ -1930,10 +2012,9 @@ def api_home():
     })
 
 @app.route("/api/work-entry/active", methods=["GET"])
+@api_login_required
 def api_active_work():
-    driver_id = request.args.get("driver_id")
-    if not driver_id:
-        return jsonify({"success": False, "message": "driver_id required"}), 400
+    driver_id = g.api_user["id"]
 
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -1966,16 +2047,17 @@ def api_active_work():
     })
 
 @app.route("/api/work-entry/start", methods=["POST"])
+@api_login_required
 def api_start_work():
     data = request.get_json() or {}
-    driver_id = data.get("driver_id")
+    driver_id = g.api_user["id"]
     work_given_person = data.get("work_given_person", "").strip()
     vehicle_type = data.get("vehicle_type", "").strip().lower()
     remarks = data.get("remarks", "").strip()
     lat = data.get("start_lat")
     lng = data.get("start_lng")
 
-    if not driver_id or not work_given_person or not vehicle_type or not remarks or lat is None or lng is None:
+    if not work_given_person or not vehicle_type or not remarks or lat is None or lng is None:
         return jsonify({"success": False, "message": "Missing required fields"}), 400
 
     start_location = parse_location(lat, lng)
@@ -2011,15 +2093,13 @@ def api_start_work():
     return jsonify({"success": True, "message": "Work started"})
 
 @app.route("/api/work-entry/end", methods=["POST"])
+@api_login_required
 def api_end_work():
     data = request.get_json() or {}
-    driver_id = data.get("driver_id")
+    driver_id = g.api_user["id"]
     end_lat = data.get("end_lat")
     end_lng = data.get("end_lng")
     remarks = data.get("remarks")
-    
-    if not driver_id:
-        return jsonify({"success": False, "message": "driver_id required"}), 400
 
     end_location = parse_location(end_lat, end_lng)
 
@@ -2062,10 +2142,9 @@ def api_end_work():
     return jsonify({"success": True, "message": "Work ended"})
 
 @app.route("/api/history", methods=["GET"])
+@api_login_required
 def api_history():
-    driver_id = request.args.get("driver_id")
-    if not driver_id:
-        return jsonify({"success": False, "message": "driver_id required"}), 400
+    driver_id = g.api_user["id"]
 
     from_date = request.args.get("from_date", "").strip()
     to_date = request.args.get("to_date", "").strip()
@@ -2090,22 +2169,9 @@ def api_history():
 # NATIVE ADMIN API ENDPOINTS (FOR MOBILE APP)
 # ---------------------------------------------------------
 
-def is_admin_api(admin_id):
-    if not admin_id: return False
-    try:
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT role FROM users WHERE id = %s", (admin_id,))
-                user = cur.fetchone()
-                return user and user["role"] == "admin"
-    except Exception:
-        return False
-
 @app.route("/api/admin/dashboard", methods=["GET"])
+@api_admin_required
 def api_admin_dashboard():
-    admin_id = request.args.get("admin_id")
-    if not is_admin_api(admin_id): return jsonify({"success": False, "message": "Unauthorized"}), 403
-    
     stats = get_admin_home_stats()
     active = []
     for e in stats["active_entries"]:
@@ -2126,10 +2192,8 @@ def api_admin_dashboard():
     })
 
 @app.route("/api/admin/users", methods=["GET", "POST"])
+@api_admin_required
 def api_admin_users():
-    admin_id = request.args.get("admin_id") or (request.get_json() or {}).get("admin_id")
-    if not is_admin_api(admin_id): return jsonify({"success": False, "message": "Unauthorized"}), 403
-
     if request.method == "POST":
         data = request.get_json() or {}
         username = data.get("username", "").strip()
@@ -2163,11 +2227,9 @@ def api_admin_users():
     return jsonify({"success": True, "users": user_list})
 
 @app.route("/api/admin/users/<int:user_id>/reset-password", methods=["POST"])
+@api_admin_required
 def api_admin_reset_password(user_id):
     data = request.get_json() or {}
-    admin_id = data.get("admin_id")
-    if not is_admin_api(admin_id): return jsonify({"success": False, "message": "Unauthorized"}), 403
-    
     new_password = data.get("new_password", "")
     if not new_password:
         return jsonify({"success": False, "message": "New password required"}), 400
@@ -2186,11 +2248,8 @@ def api_admin_reset_password(user_id):
     return jsonify({"success": True, "message": "Password reset successfully"})
 
 @app.route("/api/admin/users/<int:user_id>/delete", methods=["POST"])
+@api_admin_required
 def api_admin_delete_user(user_id):
-    data = request.get_json() or {}
-    admin_id = data.get("admin_id")
-    if not is_admin_api(admin_id): return jsonify({"success": False, "message": "Unauthorized"}), 403
-
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT id, username, role FROM users WHERE id = %s AND role = 'user'", (user_id,))
@@ -2202,10 +2261,8 @@ def api_admin_delete_user(user_id):
     return jsonify({"success": True, "message": "User deleted successfully"})
 
 @app.route("/api/admin/work", methods=["GET"])
+@api_admin_required
 def api_admin_work():
-    admin_id = request.args.get("admin_id")
-    if not is_admin_api(admin_id): return jsonify({"success": False, "message": "Unauthorized"}), 403
-    
     user_id = request.args.get("user_id", type=int)
     if not user_id:
         return jsonify({"success": False, "message": "user_id required"}), 400
@@ -2225,16 +2282,41 @@ def api_admin_work():
         })
     return jsonify({"success": True, "entries": history_list})
 
+# The user behind each Socket.IO connection, keyed by request.sid.
+socket_users = {}
+
+@socketio.on('connect')
+def handle_socket_connect(auth=None):
+    # Browsers are identified by their login session, the Android app by its API token.
+    user = current_user()
+    if user is None:
+        token = request.args.get("token")
+        if not token and isinstance(auth, dict):
+            token = auth.get("token")
+        user = user_from_api_token(token)
+    if user is None:
+        return False
+    socket_users[request.sid] = {"id": user["id"], "role": user["role"]}
+
+@socketio.on('disconnect')
+def handle_socket_disconnect(reason=None):
+    socket_users.pop(request.sid, None)
+
 @socketio.on('driver_location_update')
 def handle_driver_location_update(data):
-    driver_id = data.get('driver_id')
-    if driver_id:
-        emit('location_updated', data, room=f"driver_{driver_id}")
-        emit('location_updated', data, room="admin_live")
+    user = socket_users.get(request.sid)
+    if not user or not isinstance(data, dict):
+        return
+    # A client can only broadcast its own location.
+    data['driver_id'] = user["id"]
+    emit('location_updated', data, room=f"driver_{user['id']}")
+    emit('location_updated', data, room="admin_live")
 
 @socketio.on('join_admin_live')
 def handle_join_admin_live():
-    join_room("admin_live")
+    user = socket_users.get(request.sid)
+    if user and user["role"] == "admin":
+        join_room("admin_live")
 
 @socketio.on('leave_admin_live')
 def handle_leave_admin_live():
@@ -2242,8 +2324,11 @@ def handle_leave_admin_live():
 
 @socketio.on('join_driver_room')
 def handle_join_room(data):
+    user = socket_users.get(request.sid)
+    if not user or not isinstance(data, dict):
+        return
     driver_id = data.get('driver_id')
-    if driver_id:
+    if driver_id and (user["role"] == "admin" or str(driver_id) == str(user["id"])):
         join_room(f"driver_{driver_id}")
 
 @socketio.on('leave_driver_room')

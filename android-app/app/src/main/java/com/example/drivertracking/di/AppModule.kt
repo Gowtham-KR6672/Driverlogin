@@ -31,10 +31,13 @@ object AppModule {
         
         val authInterceptor = Interceptor { chain ->
             val requestBuilder = chain.request().newBuilder()
-            sessionManager.getAuthToken()?.let { token ->
-                requestBuilder.addHeader("Authorization", "Bearer $token")
+            val token = sessionManager.getAuthToken()
+            token?.let { requestBuilder.addHeader("Authorization", "Bearer $it") }
+            val response = chain.proceed(requestBuilder.build())
+            if (response.code == 401 && token != null) {
+                sessionManager.expireSession(token)
             }
-            chain.proceed(requestBuilder.build())
+            response
         }
 
         return OkHttpClient.Builder()

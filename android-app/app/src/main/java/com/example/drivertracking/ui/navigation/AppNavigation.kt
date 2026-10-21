@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
+import android.widget.Toast
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,7 +72,16 @@ sealed class AdminScreen(val route: String, val title: String, val icon: ImageVe
 fun AppNavigation(sessionManager: SessionManager) {
     val navController = rememberNavController()
     val context = LocalContext.current
-    
+
+    LaunchedEffect(Unit) {
+        sessionManager.sessionExpired.collect {
+            Toast.makeText(context, "Your session expired. Please log in again.", Toast.LENGTH_LONG).show()
+            navController.navigate("login") {
+                popUpTo(0) { inclusive = true }
+            }
+        }
+    }
+
     val isLoggedIn = sessionManager.getAuthToken() != null
     val isAdmin = sessionManager.getUserRole() == "admin"
     

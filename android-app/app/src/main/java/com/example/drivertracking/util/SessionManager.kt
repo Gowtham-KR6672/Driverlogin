@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -56,5 +59,17 @@ class SessionManager @Inject constructor(@ApplicationContext context: Context) {
 
     fun clearSession() {
         sharedPreferences.edit().clear().apply()
+    }
+
+    private val _sessionExpired = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /** Emits when the server rejects the saved token (expired, password reset, or user deleted). */
+    val sessionExpired: SharedFlow<Unit> = _sessionExpired.asSharedFlow()
+
+    fun expireSession(rejectedToken: String) {
+        // A late 401 for a token that a new login has already replaced must not log the user out.
+        if (getAuthToken() != rejectedToken) return
+        clearSession()
+        _sessionExpired.tryEmit(Unit)
     }
 }
