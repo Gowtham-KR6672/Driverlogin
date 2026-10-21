@@ -7,11 +7,13 @@ import secrets
 import shutil
 import subprocess
 import threading
+import time
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from functools import wraps
 from pathlib import Path
 from urllib.parse import urlparse, unquote
+from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
 import psycopg2
@@ -145,6 +147,35 @@ def create_database_backup(label="auto"):
 
 def queue_database_backup(label="auto"):
     thread = threading.Thread(target=create_database_backup, args=(label,), daemon=True)
+    thread.start()
+
+
+# Render's free plan spins a web service down after 15 minutes without inbound
+# requests, so on Render the app pings its own public URL more often than that.
+KEEP_ALIVE_INTERVAL = 10 * 60  # seconds
+_keep_alive_started = False
+
+
+def keep_alive_loop(url):
+    while True:
+        time.sleep(KEEP_ALIVE_INTERVAL)
+        try:
+            urlopen(url, timeout=60).close()
+        except Exception as exc:
+            app.logger.warning("Keep-alive ping to %s failed: %s", url, exc)
+
+
+def start_keep_alive():
+    global _keep_alive_started
+
+    base_url = os.environ.get("RENDER_EXTERNAL_URL")
+    if _keep_alive_started or not base_url or os.environ.get("IS_PULL_REQUEST") == "true":
+        return
+
+    _keep_alive_started = True
+    thread = threading.Thread(
+        target=keep_alive_loop, args=(f"{base_url.rstrip('/')}/healthz",), daemon=True
+    )
     thread.start()
 
 
