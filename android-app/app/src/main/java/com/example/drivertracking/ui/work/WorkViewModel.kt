@@ -8,7 +8,7 @@ import com.example.drivertracking.data.remote.EndWorkRequest
 import com.example.drivertracking.data.remote.LocationApi
 import com.example.drivertracking.data.remote.StartWorkRequest
 import com.example.drivertracking.data.remote.WorkEntry
-import com.example.drivertracking.util.CallCounts
+import com.example.drivertracking.util.CallSummary
 import com.example.drivertracking.util.CallLogCounter
 import com.example.drivertracking.util.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -108,8 +108,8 @@ class WorkViewModel @Inject constructor(
     }
 
     // Calls made and received since the active entry started (null if not allowed/known).
-    private suspend fun callsForActiveEntry(): CallCounts? = withContext(Dispatchers.IO) {
-        callLogCounter.countSince(_uiState.value.activeEntry?.startEpochMs)
+    private suspend fun callsForActiveEntry(): CallSummary? = withContext(Dispatchers.IO) {
+        callLogCounter.summarizeSince(_uiState.value.activeEntry?.startEpochMs)
     }
 
     fun endWork(location: Location?) {
@@ -125,9 +125,10 @@ class WorkViewModel @Inject constructor(
                     endLat = location?.latitude,
                     endLng = location?.longitude,
                     remarks = null,
-                    incomingCalls = calls?.incoming,
-                    outgoingCalls = calls?.outgoing,
-                    missedCalls = calls?.missed
+                    incomingCalls = calls?.counts?.incoming,
+                    outgoingCalls = calls?.counts?.outgoing,
+                    missedCalls = calls?.counts?.missed,
+                    callEvents = calls?.events
                 )
                 val response = api.endWork(request)
                 if (response.isSuccessful) {
@@ -158,9 +159,10 @@ class WorkViewModel @Inject constructor(
                     lat = location?.latitude,
                     lng = location?.longitude,
                     accuracy = location?.accuracy,
-                    incomingCalls = calls?.incoming,
-                    outgoingCalls = calls?.outgoing,
-                    missedCalls = calls?.missed
+                    incomingCalls = calls?.counts?.incoming,
+                    outgoingCalls = calls?.counts?.outgoing,
+                    missedCalls = calls?.counts?.missed,
+                    callEvents = calls?.events
                 )
                 val response = api.continueWork(request)
                 val body = response.body()

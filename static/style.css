@@ -5799,3 +5799,47 @@ button:hover,
 .history-redesign-metrics .call-counts {
     gap: 4px 10px;
 }
+
+/* "Phone call while driving" warning on entry cards */
+.driving-call-warning {
+    background: rgba(220, 38, 38, 0.08);
+    border: 1px solid rgba(220, 38, 38, 0.35);
+    border-radius: 12px;
+    color: #991b1b;
+    display: grid;
+    gap: 6px;
+    margin-top: 16px;
+    padding: 12px 14px;
+}
+
+.history-redesign-remarks .driving-call-warning span {
+    color: #991b1b;
+    font-size: 13px;
+}
+
+.driving-call-warning-head {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+}
+
+.driving-call-warning-head svg {
+    color: #dc2626;
+    flex: none;
+    height: 20px;
+    width: 20px;
+}
+
+.history-redesign-remarks .driving-call-warning strong {
+    color: #b91c1c;
+    font-size: 15px;
+    margin: 0;
+}
+
+.driving-call-warning ul {
+    display: grid;
+    font-size: 12px;
+    gap: 2px;
+    margin: 0;
+    padding-left: 18px;
+}

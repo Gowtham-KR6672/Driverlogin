@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_entry_parts.html" import entry_stats, trip_header %}
+{% from "_entry_parts.html" import entry_stats, trip_header, driving_call_warning %}
 {% set access_labels = {"full": "Full access", "edit": "Edit access", "view": "View only"} %}
 
 {% block content %}
@@ -378,6 +378,7 @@
                             <span>Remarks</span>
                             <strong>{{ entry.remarks or "-" }}</strong>
                             <small>Submitted {{ entry.created_at.strftime("%Y-%m-%d %H:%M") }}</small>
+                            {{ driving_call_warning(entry) }}
                         </aside>
                     </article>
                     {% endfor %}

@@ -91,7 +91,16 @@ data class EndWorkRequest(
     val remarks: String? = null,
     @SerializedName("incoming_calls") val incomingCalls: Int? = null,
     @SerializedName("outgoing_calls") val outgoingCalls: Int? = null,
-    @SerializedName("missed_calls") val missedCalls: Int? = null
+    @SerializedName("missed_calls") val missedCalls: Int? = null,
+    @SerializedName("call_events") val callEvents: List<CallEvent>? = null
+)
+
+// A call answered or made during work. The server checks the route to see if the vehicle
+// was moving at the time ("phone call while driving"). No numbers or names are sent.
+data class CallEvent(
+    @SerializedName("start_ms") val startMs: Long,
+    @SerializedName("duration_s") val durationS: Long,
+    val type: String // "incoming" or "outgoing"
 )
 
 // Ends the current entry here and starts the next one for another person (same vehicle).
@@ -103,7 +112,8 @@ data class ContinueWorkRequest(
     val accuracy: Float? = null,
     @SerializedName("incoming_calls") val incomingCalls: Int? = null,
     @SerializedName("outgoing_calls") val outgoingCalls: Int? = null,
-    @SerializedName("missed_calls") val missedCalls: Int? = null
+    @SerializedName("missed_calls") val missedCalls: Int? = null,
+    @SerializedName("call_events") val callEvents: List<CallEvent>? = null
 )
 
 data class HistoryEntry(
@@ -121,8 +131,23 @@ data class HistoryEntry(
     @SerializedName("outgoing_calls") val outgoingCalls: Int? = null,
     @SerializedName("missed_calls") val missedCalls: Int? = null,
     // Entries continued from one another share a trip id.
-    @SerializedName("trip_id") val tripId: Int? = null
+    @SerializedName("trip_id") val tripId: Int? = null,
+    @SerializedName("calls_while_driving") val callsWhileDriving: Int? = null,
+    @SerializedName("driving_calls") val drivingCalls: List<DrivingCall>? = null
 )
+
+data class DrivingCall(
+    val time: String,
+    @SerializedName("duration_s") val durationS: Int,
+    val type: String,
+    @SerializedName("speed_kmh") val speedKmh: Int
+)
+
+/** Lines for the "Phone call while driving" warning, or null when there were none. */
+fun HistoryEntry.drivingCallLines(): List<String>? = drivingCalls?.takeIf { it.isNotEmpty() }?.map {
+    val direction = if (it.type == "incoming") "Received" else "Outgoing"
+    "${it.time} · $direction · ${it.durationS / 60}m ${(it.durationS % 60).toString().padStart(2, '0')}s · ~${it.speedKmh} km/h"
+}
 
 fun HistoryEntry.topSpeedText(): String = topSpeedKmh?.let { "${it.roundToInt()} km/h" } ?: "-"
 

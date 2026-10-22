@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_entry_parts.html" import entry_stats, trip_header %}
+{% from "_entry_parts.html" import entry_stats, trip_header, driving_call_warning %}
 
 {% block head_extra %}
     {% if entries %}
@@ -117,6 +117,7 @@
                 <aside class="history-redesign-remarks">
                     <span>Remarks</span>
                     <strong>{{ entry.remarks or "-" }}</strong>
+                    {{ driving_call_warning(entry) }}
                 </aside>
             </article>
             {% endfor %}

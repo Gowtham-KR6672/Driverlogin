@@ -455,6 +455,81 @@ def save_call_counts(cur, entry_id, counts):
     )
 
 
+# A call counts as "while driving" when the vehicle averaged at least this speed during it.
+DRIVING_CALL_SPEED_KMH = 10.0
+MAX_CALL_EVENTS = 200
+
+
+def parse_call_events(data):
+    """Calls answered or made during an entry, as sent by the Android app.
+
+    [{"start_ms": epoch ms, "duration_s": seconds, "type": "incoming" | "outgoing"}];
+    no phone numbers or names. None when the app didn't send any (e.g. permission off).
+    """
+    events = data.get("call_events")
+    if not isinstance(events, list):
+        return None
+    parsed = []
+    for event in events[:MAX_CALL_EVENTS]:
+        if not isinstance(event, dict) or event.get("type") not in ("incoming", "outgoing"):
+            continue
+        try:
+            start_ms = int(event.get("start_ms"))
+            duration_s = int(event.get("duration_s"))
+        except (TypeError, ValueError):
+            continue
+        if duration_s > 0:
+            parsed.append({"start_ms": start_ms, "duration_s": min(duration_s, 6 * 3600), "type": event["type"]})
+    return parsed
+
+
+def call_speed_kmh(cur, entry_id, start, end):
+    """Average vehicle speed during a call, from the entry's saved route points.
+
+    Uses the points recorded during the call plus the last point in the minute before it.
+    Points are only saved when the vehicle moves, so a parked driver gives 0.
+    """
+    cur.execute(
+        """
+        SELECT lat, lng, recorded_at
+        FROM work_entry_locations
+        WHERE work_entry_id = %s AND recorded_at BETWEEN %s AND %s
+        ORDER BY recorded_at, id
+        """,
+        (entry_id, start - timedelta(seconds=60), end),
+    )
+    points = cur.fetchall()
+    track = [p for p in points if p["recorded_at"] < start][-1:] + [p for p in points if p["recorded_at"] >= start]
+    if len(track) < 2:
+        return 0.0
+    elapsed = (track[-1]["recorded_at"] - track[0]["recorded_at"]).total_seconds()
+    if elapsed < 5:
+        return 0.0
+    km = sum(calculate_distance_km(a["lat"], a["lng"], b["lat"], b["lng"]) for a, b in zip(track, track[1:]))
+    return km / (elapsed / 3600)
+
+
+def save_driving_calls(cur, entry_id, call_events):
+    """Stores the calls answered or made while the vehicle was moving (none when not reported)."""
+    if call_events is None:
+        return
+    flagged = []
+    for event in call_events:
+        start = datetime.fromtimestamp(event["start_ms"] / 1000, ZoneInfo(APP_TIMEZONE)).replace(tzinfo=None)
+        speed = call_speed_kmh(cur, entry_id, start, start + timedelta(seconds=event["duration_s"]))
+        if speed >= DRIVING_CALL_SPEED_KMH:
+            flagged.append({
+                "time": start.strftime("%H:%M:%S"),
+                "duration_s": event["duration_s"],
+                "type": event["type"],
+                "speed_kmh": round(speed),
+            })
+    cur.execute(
+        "UPDATE work_entries SET calls_while_driving = %s, driving_calls = %s WHERE id = %s",
+        (len(flagged), psycopg2.extras.Json(flagged), entry_id),
+    )
+
+
 def entry_start_epoch_ms(entry):
     # next_start_time is stored in APP_TIMEZONE; the phone counts calls from this instant.
     start = entry.get("next_start_time")
@@ -464,7 +539,7 @@ def entry_start_epoch_ms(entry):
 
 
 def continue_with_new_person(cur, entry, work_given_person, remarks, location, accuracy=None,
-                             recorded_at=None, call_counts=None):
+                             recorded_at=None, call_counts=None, call_events=None):
     """Ends `entry` at `location` and starts the next entry there for another person.
 
     `entry` needs id, user_id, vehicle_type, distance_km and trip_id. Both entries share
@@ -475,6 +550,7 @@ def continue_with_new_person(cur, entry, work_given_person, remarks, location, a
     save_location_point(cur, entry, location[0], location[1], accuracy, recorded_at)
     recalculate_entry_distance(cur, entry["id"])
     save_call_counts(cur, entry["id"], call_counts)
+    save_driving_calls(cur, entry["id"], call_events)
     cur.execute(
         """
         UPDATE work_entries
@@ -510,6 +586,8 @@ def entry_stats_fields(entry):
         "incoming_calls": entry.get("incoming_calls"),
         "outgoing_calls": entry.get("outgoing_calls"),
         "missed_calls": entry.get("missed_calls"),
+        "calls_while_driving": entry.get("calls_while_driving"),
+        "driving_calls": entry.get("driving_calls") or [],
         "trip_id": entry.get("trip_id"),
     }
 
@@ -529,6 +607,11 @@ def add_duration(entries):
         top_speed = entry.get("top_speed_kmh")
         entry["top_speed_display"] = f"{float(top_speed):.0f} km/h" if top_speed is not None else "-"
         entry["calls_recorded"] = entry.get("incoming_calls") is not None
+        # e.g. [{"time": "14:05:10", "duration_s": 95, "type": "incoming", "speed_kmh": 34}]
+        entry["driving_call_list"] = [
+            dict(call, duration_display=f"{call['duration_s'] // 60}m {call['duration_s'] % 60:02d}s")
+            for call in (entry.get("driving_calls") or [])
+        ]
     return entries
 
 
@@ -1006,7 +1089,9 @@ def init_db():
                 ADD COLUMN IF NOT EXISTS incoming_calls INTEGER,
                 ADD COLUMN IF NOT EXISTS outgoing_calls INTEGER,
                 ADD COLUMN IF NOT EXISTS missed_calls INTEGER,
-                ADD COLUMN IF NOT EXISTS trip_id INTEGER;
+                ADD COLUMN IF NOT EXISTS trip_id INTEGER,
+                ADD COLUMN IF NOT EXISTS calls_while_driving INTEGER,
+                ADD COLUMN IF NOT EXISTS driving_calls JSONB;
                 """
             )
             cur.execute(
@@ -1790,7 +1875,7 @@ def download_admin_data():
 
     if selected_user_id:
         entries = get_admin_entries(selected_user_id)
-        writer.writerow(["User", "Work Given Person", "Vehicle", "Start Time", "End Time", "Total Time", "Travel Distance", "Top Speed", "Average Speed", "Incoming Calls", "Outgoing Calls", "Missed Calls", "Trip", "Remarks", "Submitted"])
+        writer.writerow(["User", "Work Given Person", "Vehicle", "Start Time", "End Time", "Total Time", "Travel Distance", "Top Speed", "Average Speed", "Incoming Calls", "Outgoing Calls", "Missed Calls", "Calls While Driving", "Trip", "Remarks", "Submitted"])
 
         for entry in entries:
             writer.writerow(
@@ -1807,6 +1892,7 @@ def download_admin_data():
                     entry["incoming_calls"] if entry["calls_recorded"] else "",
                     entry["outgoing_calls"] if entry["calls_recorded"] else "",
                     entry["missed_calls"] if entry["calls_recorded"] else "",
+                    entry["calls_while_driving"] if entry.get("calls_while_driving") is not None else "",
                     entry["trip_id"] or "",
                     entry["remarks"],
                     entry["created_at"].strftime("%Y-%m-%d %H:%M:%S"),
@@ -2324,7 +2410,7 @@ def download_history():
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Work Given Person", "Vehicle", "Start Time", "End Time", "Total Time", "Travel Distance", "Top Speed", "Average Speed", "Incoming Calls", "Outgoing Calls", "Missed Calls", "Trip", "Remarks"])
+    writer.writerow(["Work Given Person", "Vehicle", "Start Time", "End Time", "Total Time", "Travel Distance", "Top Speed", "Average Speed", "Incoming Calls", "Outgoing Calls", "Missed Calls", "Calls While Driving", "Trip", "Remarks"])
 
     for entry in entries:
         writer.writerow(
@@ -2340,6 +2426,7 @@ def download_history():
                 entry["incoming_calls"] if entry["calls_recorded"] else "",
                 entry["outgoing_calls"] if entry["calls_recorded"] else "",
                 entry["missed_calls"] if entry["calls_recorded"] else "",
+                    entry["calls_while_driving"] if entry.get("calls_while_driving") is not None else "",
                 entry["trip_id"] or "",
                 entry["remarks"],
             ]
@@ -2715,6 +2802,7 @@ def api_end_work():
 
             cur.execute(update_query, tuple(params))
             save_call_counts(cur, entry["id"], parse_call_counts(data))
+            save_driving_calls(cur, entry["id"], parse_call_events(data))
         conn.commit()
 
     queue_database_backup("end_work")
@@ -2756,6 +2844,7 @@ def api_continue_work():
             new_entry_id = continue_with_new_person(
                 cur, entry, work_given_person, remarks, location,
                 accuracy=data.get("accuracy"), call_counts=parse_call_counts(data),
+                call_events=parse_call_events(data),
             )
         conn.commit()
 

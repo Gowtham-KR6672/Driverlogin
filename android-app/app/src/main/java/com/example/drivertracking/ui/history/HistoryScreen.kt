@@ -1,5 +1,6 @@
 package com.example.drivertracking.ui.history
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -42,6 +44,7 @@ import androidx.navigation.NavController
 import com.example.drivertracking.data.remote.HistoryEntry
 import com.example.drivertracking.data.remote.avgSpeedText
 import com.example.drivertracking.data.remote.callsText
+import com.example.drivertracking.data.remote.drivingCallLines
 import com.example.drivertracking.data.remote.topSpeedText
 import com.example.drivertracking.theme.*
 
@@ -274,6 +277,7 @@ fun HistoryCard(entry: HistoryEntry, context: android.content.Context, authToken
             DetailRow(icon = Icons.Default.ShowChart, label = "Avg speed", value = entry.avgSpeedText())
             Spacer(modifier = Modifier.height(12.dp))
             DetailRow(icon = Icons.Default.Phone, label = "Calls", value = entry.callsText())
+            DrivingCallWarning(entry)
             
             if (entry.remarks.isNotBlank()) {
                 Spacer(modifier = Modifier.height(16.dp))
@@ -354,6 +358,31 @@ fun RouteMapDialog(url: String, authToken: String?, onDismiss: () -> Unit) {
                     },
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 )
+            }
+        }
+    }
+}
+
+/** Red warning listing calls answered or made while the vehicle was moving. */
+@Composable
+fun DrivingCallWarning(entry: HistoryEntry) {
+    val lines = entry.drivingCallLines() ?: return
+    Spacer(modifier = Modifier.height(16.dp))
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = ErrorRed.copy(alpha = 0.08f),
+        border = BorderStroke(1.dp, ErrorRed.copy(alpha = 0.35f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Warning, contentDescription = null, tint = ErrorRed, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Phone call while driving", color = ErrorRed, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            lines.forEach { line ->
+                Text("• $line", style = MaterialTheme.typography.bodySmall, color = TextDark)
             }
         }
     }

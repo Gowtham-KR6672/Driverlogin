@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.drivertracking.data.remote.AdminUser
 import com.example.drivertracking.data.remote.HistoryEntry
+import com.example.drivertracking.ui.history.DrivingCallWarning
 import com.example.drivertracking.data.remote.avgSpeedText
 import com.example.drivertracking.data.remote.callsText
 import com.example.drivertracking.data.remote.topSpeedText
@@ -110,6 +111,7 @@ fun AdminEntryCard(entry: HistoryEntry) {
                     color = MaterialTheme.colorScheme.primary
                 )
             }
+            DrivingCallWarning(entry)
             if (!entry.remarks.isNullOrEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(text = "Remarks: ${entry.remarks}", style = MaterialTheme.typography.bodySmall)
