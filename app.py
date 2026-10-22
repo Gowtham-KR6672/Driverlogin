@@ -1973,8 +1973,10 @@ def home():
     if user["role"] == "admin":
         return redirect(url_for("admin_dashboard"))
 
-    month_start, month_end = current_month_bounds()
-    entries = get_history_entries(user["id"], month_start.strftime("%Y-%m-%d"), month_end.strftime("%Y-%m-%d"))
+    # home.html pages by month (?month=YYYY-MM) and lists the latest entries.
+    month_start, month_end = current_month_bounds(request.args.get("month"))
+    last_day = month_end - timedelta(days=1)
+    entries = get_history_entries(user["id"], month_start.strftime("%Y-%m-%d"), last_day.strftime("%Y-%m-%d"))
 
     total_hours = total_duration(entries)
     total_km = 0.0
@@ -1993,6 +1995,13 @@ def home():
     return render_template(
         "home.html",
         current_month_stats=current_month_stats,
+        current_month_label=month_start.strftime("%B %Y"),
+        month_nav={
+            "current": month_key(month_start),
+            "prev": month_key(previous_month_start(month_start)),
+            "next": month_key(month_end),
+        },
+        recent_entries=entries[:5],
         chart_data=chart_data,
     )
 
