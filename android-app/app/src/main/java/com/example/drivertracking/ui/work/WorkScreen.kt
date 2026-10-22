@@ -46,16 +46,31 @@ fun LiveMapView(modifier: Modifier = Modifier) {
     val mapView = remember {
         org.osmdroid.config.Configuration.getInstance().apply {
             load(context, context.getSharedPreferences("osmdroid", android.content.Context.MODE_PRIVATE))
-            // tile.openstreetmap.org blocks osmdroid's default "osmdroid" user agent with
-            // "403 Access blocked" tiles; its usage policy requires an app-specific one.
+            // tile.openstreetmap.org answers generic user agents with "403 Access blocked"
+            // tiles; its usage policy requires one that identifies the app.
             userAgentValue = "RoadSync-Android (${context.packageName})"
-            // The blocked tiles arrive as normal images and were cached; use a fresh
-            // app-private cache so they are never shown again.
+            // The blocked tiles arrive as normal images and get cached; use a fresh
+            // app-private cache so earlier ones are never shown again.
             osmdroidBasePath = java.io.File(context.cacheDir, "osmdroid")
-            osmdroidTileCache = java.io.File(context.cacheDir, "osmdroid/tiles-v2")
+            osmdroidTileCache = java.io.File(context.cacheDir, "osmdroid/tiles-v3")
         }
         org.osmdroid.views.MapView(context).apply {
-            setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
+            // Same tiles as TileSourceFactory.MAPNIK, minus FLAG_USER_AGENT_NORMALIZED: with that
+            // flag osmdroid ignores userAgentValue and sends "<packageName>/<versionCode>", and
+            // OSM blocks the placeholder "com.example.drivertracking/1".
+            setTileSource(
+                org.osmdroid.tileprovider.tilesource.XYTileSource(
+                    "Mapnik", 0, 19, 256, ".png",
+                    arrayOf("https://tile.openstreetmap.org/"),
+                    "© OpenStreetMap contributors",
+                    org.osmdroid.tileprovider.tilesource.TileSourcePolicy(
+                        2,
+                        org.osmdroid.tileprovider.tilesource.TileSourcePolicy.FLAG_NO_BULK or
+                            org.osmdroid.tileprovider.tilesource.TileSourcePolicy.FLAG_NO_PREVENTIVE or
+                            org.osmdroid.tileprovider.tilesource.TileSourcePolicy.FLAG_USER_AGENT_MEANINGFUL
+                    )
+                )
+            )
             setMultiTouchControls(true)
             controller.setZoom(18.0)
             val locationOverlay = org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay(org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider(context), this)
