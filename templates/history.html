@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_entry_parts.html" import entry_stats, trip_header %}
 
 {% block head_extra %}
     {% if entries %}
@@ -55,7 +56,9 @@
     </form>
 
     <div class="history-redesign-list">
-        {% for entry in entries %}
+        {% for group in entry_groups %}
+            {% if group.is_trip %}<section class="trip-group">{{ trip_header(group) }}{% endif %}
+            {% for entry in group.entries %}
             <article class="history-redesign-card">
                 <div class="history-redesign-main">
                     <header class="history-redesign-card-head">
@@ -109,12 +112,15 @@
                             <strong>{{ entry.distance_display }}</strong>
                         </div>
                     </div>
+                    {{ entry_stats(entry) }}
                 </div>
                 <aside class="history-redesign-remarks">
                     <span>Remarks</span>
                     <strong>{{ entry.remarks or "-" }}</strong>
                 </aside>
             </article>
+            {% endfor %}
+            {% if group.is_trip %}</section>{% endif %}
         {% else %}
             <div class="history-empty">No completed work history yet.</div>
         {% endfor %}

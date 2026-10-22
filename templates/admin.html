@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% from "_entry_parts.html" import entry_stats, trip_header %}
+{% set access_labels = {"full": "Full access", "edit": "Edit access", "view": "View only"} %}
 
 {% block content %}
 {% if admin_tab == "home" %}
@@ -102,13 +104,14 @@
         <div class="work-redesign-header">
             <div>
                 <h2>Users</h2>
-                <p>Create and manage driver logins</p>
+                <p>Create and manage driver and admin logins</p>
             </div>
             <a class="home-refresh" href="{{ url_for('admin_users') }}" aria-label="Refresh users">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-15.6 6.1"/><path d="M3 12A9 9 0 0 1 18.6 5.9"/><path d="M18 2v4h4"/><path d="M6 22v-4H2"/></svg>
             </a>
         </div>
 
+        {% if can_edit %}
         <div class="admin-create-user-card">
             <div class="work-entry-card-head">
                 <div class="work-entry-plus">
@@ -131,6 +134,42 @@
                 <button type="submit">Create User</button>
             </form>
         </div>
+        {% else %}
+        <div class="registered-user-protected">You have view-only access: you can see drivers and entries but not change them.</div>
+        {% endif %}
+
+        {% if can_manage_admins %}
+        <div class="admin-create-user-card">
+            <div class="work-entry-card-head">
+                <div class="work-entry-plus">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <div>
+                    <strong>Create Admin Login</strong>
+                    <span>Add another admin or MD. Full access: everything. Edit access: drivers and entries. View only: see everything, change nothing.</span>
+                </div>
+            </div>
+            <form method="post" action="{{ url_for('create_admin') }}" class="admin-create-admin-form">
+                <label>
+                    Username
+                    <input type="text" name="username" required>
+                </label>
+                <label>
+                    Password
+                    <input type="password" name="password" required>
+                </label>
+                <label>
+                    Access
+                    <select name="access_level" required>
+                        <option value="view">View only</option>
+                        <option value="edit">Edit access</option>
+                        <option value="full">Full access</option>
+                    </select>
+                </label>
+                <button type="submit">Create Admin</button>
+            </form>
+        </div>
+        {% endif %}
 
         <div class="admin-users-list-card">
             <div class="home-recent-card">
@@ -150,6 +189,9 @@
                                 <h3>{{ user.username }}</h3>
                                 <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 2px;">
                                     <span class="role-badge role-{{ user.role }}">{{ user.role }}</span>
+                                    {% if user.role == "admin" %}
+                                        <span class="access-badge access-{{ user.access_level or 'full' }}">{{ access_labels[user.access_level or 'full'] }}</span>
+                                    {% endif %}
                                     <span class="mobile-status-badge {{ 'status-protected' if user.role != 'user' else '' }}">{{ "Manageable" if user.role == "user" else "Protected" }}</span>
                                 </div>
                             </div>
@@ -164,7 +206,7 @@
                                 <dd>{{ "Manageable" if user.role == "user" else "Protected" }}</dd>
                             </div>
                         </dl>
-                        {% if user.role == "user" %}
+                        {% if user.role == "user" and can_edit %}
                             <div class="registered-user-actions">
                                 <form method="post" action="{{ url_for('reset_user_password', user_id=user.id) }}" class="user-card-reset-form">
                                     <input type="password" name="new_password" placeholder="New password" required>
@@ -174,8 +216,30 @@
                                     <button type="submit" class="danger-button">Delete</button>
                                 </form>
                             </div>
+                        {% elif user.role == "user" %}
+                            <div class="registered-user-protected">View only.</div>
+                        {% elif can_manage_admins and user.id != logged_in_user.id %}
+                            <div class="admin-account-actions">
+                                <form method="post" action="{{ url_for('update_admin_access', admin_id=user.id) }}" class="user-card-reset-form">
+                                    <select name="access_level" aria-label="Access level for {{ user.username }}">
+                                        {% for level in admin_access_levels %}
+                                            <option value="{{ level }}" {% if (user.access_level or 'full') == level %}selected{% endif %}>{{ access_labels[level] }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="submit">Save</button>
+                                </form>
+                                <div class="registered-user-actions">
+                                    <form method="post" action="{{ url_for('reset_admin_password', admin_id=user.id) }}" class="user-card-reset-form">
+                                        <input type="password" name="new_password" placeholder="New password" required>
+                                        <button type="submit">Reset</button>
+                                    </form>
+                                    <form method="post" action="{{ url_for('delete_admin', admin_id=user.id) }}" class="user-card-delete-form" onsubmit="return confirm('Delete admin {{ user.username }}?');">
+                                        <button type="submit" class="danger-button">Delete</button>
+                                    </form>
+                                </div>
+                            </div>
                         {% else %}
-                            <div class="registered-user-protected">Admin account cannot be reset or deleted here.</div>
+                            <div class="registered-user-protected">{{ "This is your account." if user.id == logged_in_user.id else "Only full admins can change admin accounts." }}</div>
                         {% endif %}
                     </article>
                 {% else %}
@@ -261,7 +325,9 @@
             {% endif %}
 
             <div class="history-redesign-list">
-                {% for entry in entries %}
+                {% for group in entry_groups %}
+                    {% if group.is_trip %}<section class="trip-group">{{ trip_header(group) }}{% endif %}
+                    {% for entry in group.entries %}
                     <article class="history-redesign-card">
                         <div class="history-redesign-main">
                             <header class="history-redesign-card-head">
@@ -306,6 +372,7 @@
                                     <strong>{{ entry.distance_display }}</strong>
                                 </div>
                             </div>
+                            {{ entry_stats(entry) }}
                         </div>
                         <aside class="history-redesign-remarks">
                             <span>Remarks</span>
@@ -313,6 +380,8 @@
                             <small>Submitted {{ entry.created_at.strftime("%Y-%m-%d %H:%M") }}</small>
                         </aside>
                     </article>
+                    {% endfor %}
+                    {% if group.is_trip %}</section>{% endif %}
                 {% else %}
                     <div class="history-empty">No entries yet.</div>
                 {% endfor %}

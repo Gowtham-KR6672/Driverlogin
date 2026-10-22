@@ -1,0 +1,56 @@
+{# Shared pieces of the entry cards on the admin Entries and driver History pages. #}
+
+{% set phone_path = "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" %}
+
+{% macro entry_stats(entry) %}
+    <div class="history-redesign-metrics entry-stats-row">
+        <div>
+            <span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14l4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
+                Top speed
+            </span>
+            <strong>{{ entry.top_speed_display }}</strong>
+        </div>
+        <div>
+            <span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                Avg speed
+            </span>
+            <strong>{{ entry.avg_speed_display }}</strong>
+        </div>
+        <div>
+            <span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="{{ phone_path }}"/></svg>
+                Calls
+            </span>
+            {% if entry.calls_recorded %}
+                <strong class="call-counts">
+                    <span title="Received calls">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 2 16 8 22 8"/><line x1="22" y1="2" x2="16" y2="8"/><path d="{{ phone_path }}"/></svg>
+                        {{ entry.incoming_calls }}
+                    </span>
+                    <span title="Outgoing calls">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 7 23 1 17 1"/><line x1="16" y1="8" x2="23" y2="1"/><path d="{{ phone_path }}"/></svg>
+                        {{ entry.outgoing_calls }}
+                    </span>
+                    <span title="Missed calls" class="call-missed">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><line x1="23" y1="1" x2="17" y2="7"/><line x1="17" y1="1" x2="23" y2="7"/><path d="{{ phone_path }}"/></svg>
+                        {{ entry.missed_calls }}
+                    </span>
+                </strong>
+            {% else %}
+                <strong title="Not recorded: entry made on the website, or the phone's Call log permission is off">-</strong>
+            {% endif %}
+        </div>
+    </div>
+{% endmacro %}
+
+{% macro trip_header(group) %}
+    <header class="trip-group-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>
+        <div>
+            <strong>Trip: {{ group.people | join(" → ") }}</strong>
+            <span>{{ group.entries | length }} people · {{ "%.2f" | format(group.total_km) }} km in total · km for each person below</span>
+        </div>
+    </header>
+{% endmacro %}

@@ -5613,3 +5613,189 @@ button:hover,
         padding-top: 14px;
     }
 }
+
+/* Trip statistics row (top/average speed, call counts) on entry cards */
+.history-redesign-metrics.entry-stats-row {
+    border-top: 1px dashed var(--app-line);
+    margin-top: 18px;
+    padding-top: 16px;
+}
+
+.history-redesign-metrics .call-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
+.history-redesign-metrics .call-counts span {
+    color: var(--app-text);
+    font-size: 17px;
+    gap: 5px;
+}
+
+.history-redesign-metrics .call-counts svg {
+    color: #3b82f6;
+    height: 16px;
+    width: 16px;
+}
+
+.history-redesign-metrics .call-counts .call-missed,
+.history-redesign-metrics .call-counts .call-missed svg {
+    color: #dc2626;
+}
+
+/* Entries of one "continue with another person" trip, grouped together */
+.trip-group {
+    background: color-mix(in srgb, var(--app-blue) 6%, transparent);
+    border: 1px solid var(--app-line);
+    border-left: 4px solid var(--app-blue);
+    border-radius: 18px;
+    display: grid;
+    gap: 16px;
+    padding: 16px;
+}
+
+.trip-group-head {
+    align-items: center;
+    color: var(--app-text);
+    display: flex;
+    gap: 12px;
+    padding: 4px 6px 0;
+}
+
+.trip-group-head svg {
+    color: var(--app-blue);
+    flex: none;
+    height: 26px;
+    width: 26px;
+}
+
+.trip-group-head strong {
+    display: block;
+    font-size: 17px;
+}
+
+.trip-group-head span {
+    color: var(--app-muted);
+    font-size: 13px;
+}
+
+/* Admin access levels */
+.access-badge {
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 3px 10px;
+}
+
+.access-full {
+    background: rgba(37, 99, 235, 0.12);
+    color: #1d4ed8;
+}
+
+.access-edit {
+    background: rgba(16, 185, 129, 0.14);
+    color: #047857;
+}
+
+.access-view {
+    background: rgba(100, 116, 139, 0.16);
+    color: #475569;
+}
+
+.admin-account-actions {
+    display: grid;
+    gap: 10px;
+}
+
+.admin-account-actions select {
+    min-height: 42px;
+    min-width: 0;
+}
+
+.admin-create-user-card select {
+    border-color: #d6dce8;
+    border-radius: 12px;
+    color: var(--app-text);
+    font-size: 15px;
+    min-height: 58px;
+}
+
+.admin-create-user-card form.admin-create-admin-form {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+
+@media (max-width: 900px) {
+    .admin-create-user-card form.admin-create-admin-form {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* "Continue with another person" under End Work (website driver page) */
+.continue-work {
+    border-top: 1px solid var(--app-line);
+    margin-top: 16px;
+    padding-top: 14px;
+}
+
+.continue-work summary {
+    align-items: center;
+    color: var(--app-blue);
+    cursor: pointer;
+    display: flex;
+    font-weight: 800;
+    gap: 8px;
+    list-style: none;
+}
+
+.continue-work summary::-webkit-details-marker {
+    display: none;
+}
+
+.continue-work summary svg {
+    height: 20px;
+    width: 20px;
+}
+
+.continue-work .work-redesign-form.continue-work-form {
+    gap: 16px 20px;
+    padding: 16px 0 0;
+}
+
+.continue-work-note {
+    color: var(--app-muted);
+    font-size: 13px;
+    margin: 0;
+}
+
+@media (max-width: 640px) {
+    .continue-work .work-redesign-form.continue-work-form {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Driver History filter bar: the actions (Filter, Download, per page, Clear) get their own
+   row so the bar no longer runs off the right edge. */
+.history-redesign-filter:not(.admin-entry-filter) {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+}
+
+.history-redesign-filter:not(.admin-entry-filter) .history-redesign-actions {
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+}
+
+@media (max-width: 900px) {
+    .history-redesign-filter:not(.admin-entry-filter) {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Notices such as "View only." need inner spacing */
+.registered-user-protected {
+    padding: 10px 14px;
+}
+
+.history-redesign-metrics .call-counts {
+    gap: 4px 10px;
+}

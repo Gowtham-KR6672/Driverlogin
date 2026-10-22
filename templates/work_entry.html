@@ -110,6 +110,37 @@
                 </div>
                 <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">End</button>
             </form>
+            <details class="continue-work">
+                <summary>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/><circle cx="18" cy="5" r="3"/></svg>
+                    Continue with another person from here
+                </summary>
+                <form method="post" action="{{ url_for('continue_work_entry', entry_id=entry.id) }}" class="work-redesign-form continue-work-form" id="continueWorkForm{{ entry.id }}">
+                    <p class="continue-work-note full">Ends this work for {{ entry.work_given_person }} at your current location and starts the next one from the same spot with the same {{ entry.vehicle_type }}. Each person gets their own km.</p>
+                    <label>
+                        Next work given person
+                        <select name="work_given_person" class="continue-person" required>
+                            <option value="">Select person</option>
+                            {% for person in work_people if person != entry.work_given_person %}
+                                <option value="{{ person }}">{{ person }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="continue-other-field" hidden>
+                        Enter person name
+                        <input type="text" name="other_work_given_person" class="continue-other">
+                    </label>
+                    <label class="full">
+                        Remarks
+                        <textarea name="remarks" rows="3" maxlength="250" required placeholder="Remarks for the next person..."></textarea>
+                    </label>
+                    <input type="hidden" name="lat" class="continue-lat">
+                    <input type="hidden" name="lng" class="continue-lng">
+                    <input type="hidden" name="accuracy" class="continue-accuracy">
+                    <input type="hidden" name="recorded_at" class="continue-recorded-at">
+                    <button type="submit" class="full">Continue with this person</button>
+                </form>
+            </details>
         </div>
     {% else %}
         <p class="empty-state">No active work. Start a new work entry above.</p>
@@ -435,6 +466,8 @@
                 lng: currentLng,
                 accuracy: accuracy,
                 recorded_at: currentTime,
+                speed: position.coords.speed,
+                heading: position.coords.heading,
                 ...batteryStatus
             })
         });
@@ -509,6 +542,47 @@
                     } else {
                         form.submit();
                     }
+                },
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 0,
+                    timeout: 12000
+                }
+            );
+        });
+    });
+
+    // "Continue with another person": same location handling as End Work, then submit.
+    document.querySelectorAll("form[id^='continueWorkForm']").forEach(function (form) {
+        const personSelect = form.querySelector(".continue-person");
+        const otherField = form.querySelector(".continue-other-field");
+        const otherInput = form.querySelector(".continue-other");
+        personSelect.addEventListener("change", function () {
+            const showOther = personSelect.value === "Other";
+            otherField.hidden = !showOther;
+            otherInput.required = showOther;
+        });
+
+        let continueLocationRequested = false;
+        form.addEventListener("submit", function (event) {
+            if (continueLocationRequested || !("geolocation" in navigator)) {
+                return;
+            }
+            event.preventDefault();
+            continueLocationRequested = true;
+            form.querySelector("button[type='submit']").disabled = true;
+
+            navigator.geolocation.getCurrentPosition(
+                function (position) {
+                    form.querySelector(".continue-lat").value = position.coords.latitude;
+                    form.querySelector(".continue-lng").value = position.coords.longitude;
+                    form.querySelector(".continue-accuracy").value = position.coords.accuracy || "";
+                    form.querySelector(".continue-recorded-at").value = position.timestamp || Date.now();
+                    form.submit();
+                },
+                function () {
+                    // The server falls back to the last known location.
+                    form.submit();
                 },
                 {
                     enableHighAccuracy: true,

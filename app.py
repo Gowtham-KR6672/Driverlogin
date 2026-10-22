@@ -369,8 +369,12 @@ def save_battery_status(cur, entry_id, level, charging):
 
 
 def broadcast_driver_location(user_id, username, vehicle_type, lat, lng, distance_km,
-                              battery_level=None, battery_charging=None):
+                              battery_level=None, battery_charging=None, speed_kmh=None, bearing=None):
     # The Live Tracking page (room "admin_live") and the per-driver admin map listen for this.
+    try:
+        bearing = float(bearing) if bearing is not None else None
+    except (TypeError, ValueError):
+        bearing = None
     payload = {
         "driver_id": user_id,
         "username": username,
@@ -382,17 +386,168 @@ def broadcast_driver_location(user_id, username, vehicle_type, lat, lng, distanc
         "total_distance_km": round(float(distance_km or 0), 3),
         "battery_level": battery_level,
         "battery_charging": battery_charging,
+        "speed_kmh": speed_kmh,
+        "bearing": bearing,
         "updated_at": get_local_now().strftime("%Y-%m-%d %H:%M:%S"),
     }
     socketio.emit("location_updated", payload, room="admin_live")
     socketio.emit("location_updated", payload, room=f"driver_{user_id}")
 
 
+# GPS speed is only trusted from a reasonably accurate fix and below a plausible maximum,
+# so a single jumpy reading can't become the trip's top speed.
+MAX_SPEED_ACCURACY_M = 50.0
+
+
+def parse_speed_kmh(speed_mps, accuracy):
+    try:
+        speed = float(speed_mps)
+        accuracy = float(accuracy) if accuracy is not None else None
+    except (TypeError, ValueError):
+        return None
+    if not 0 <= speed <= MAX_REASONABLE_SPEED_MPS:
+        return None
+    if accuracy is not None and accuracy > MAX_SPEED_ACCURACY_M:
+        return None
+    return round(speed * 3.6, 1)
+
+
+def save_top_speed(cur, entry_id, speed_kmh):
+    if speed_kmh is None:
+        return
+    cur.execute(
+        """
+        UPDATE work_entries
+        SET top_speed_kmh = GREATEST(COALESCE(top_speed_kmh, 0), %s)
+        WHERE id = %s
+        """,
+        (speed_kmh, entry_id),
+    )
+
+
+CALL_COUNT_FIELDS = ("incoming_calls", "outgoing_calls", "missed_calls")
+
+
+def parse_call_counts(data):
+    # The Android app sends all three counts or none (e.g. Call log permission refused).
+    counts = {}
+    for field in CALL_COUNT_FIELDS:
+        try:
+            value = int(data.get(field))
+        except (TypeError, ValueError):
+            return None
+        if value < 0:
+            return None
+        counts[field] = value
+    return counts
+
+
+def save_call_counts(cur, entry_id, counts):
+    if not counts:
+        return
+    cur.execute(
+        """
+        UPDATE work_entries
+        SET incoming_calls = %s, outgoing_calls = %s, missed_calls = %s
+        WHERE id = %s
+        """,
+        (counts["incoming_calls"], counts["outgoing_calls"], counts["missed_calls"], entry_id),
+    )
+
+
+def entry_start_epoch_ms(entry):
+    # next_start_time is stored in APP_TIMEZONE; the phone counts calls from this instant.
+    start = entry.get("next_start_time")
+    if not start:
+        return None
+    return int(start.replace(tzinfo=ZoneInfo(APP_TIMEZONE)).timestamp() * 1000)
+
+
+def continue_with_new_person(cur, entry, work_given_person, remarks, location, accuracy=None,
+                             recorded_at=None, call_counts=None):
+    """Ends `entry` at `location` and starts the next entry there for another person.
+
+    `entry` needs id, user_id, vehicle_type, distance_km and trip_id. Both entries share
+    trip_id (the trip's first entry id) so the entry lists show them as one trip with
+    separate km per person. Returns the new entry's id.
+    """
+    trip_id = entry.get("trip_id") or entry["id"]
+    save_location_point(cur, entry, location[0], location[1], accuracy, recorded_at)
+    recalculate_entry_distance(cur, entry["id"])
+    save_call_counts(cur, entry["id"], call_counts)
+    cur.execute(
+        """
+        UPDATE work_entries
+        SET end_time = CURRENT_TIMESTAMP, tracking_token = NULL, trip_id = %s
+        WHERE id = %s
+        """,
+        (trip_id, entry["id"]),
+    )
+    cur.execute(
+        """
+        INSERT INTO work_entries
+        (user_id, work_given_person, vehicle_type, next_start_time, current_lat, current_lng,
+         location_updated_at, tracking_token, remarks, trip_id)
+        VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s)
+        RETURNING id
+        """,
+        (entry["user_id"], work_given_person, entry["vehicle_type"], location[0], location[1],
+         secrets.token_urlsafe(32), remarks, trip_id),
+    )
+    new_entry = cur.fetchone()
+    cur.execute(
+        "INSERT INTO work_entry_locations (work_entry_id, lat, lng) VALUES (%s, %s, %s)",
+        (new_entry["id"], location[0], location[1]),
+    )
+    return new_entry["id"]
+
+
+def entry_stats_fields(entry):
+    """Trip statistics shared by the JSON APIs (history, admin entries)."""
+    return {
+        "top_speed_kmh": float(entry["top_speed_kmh"]) if entry.get("top_speed_kmh") is not None else None,
+        "avg_speed_kmh": entry.get("avg_speed_kmh"),
+        "incoming_calls": entry.get("incoming_calls"),
+        "outgoing_calls": entry.get("outgoing_calls"),
+        "missed_calls": entry.get("missed_calls"),
+        "trip_id": entry.get("trip_id"),
+    }
+
+
 def add_duration(entries):
     for entry in entries:
         entry["duration"] = format_duration(entry["next_start_time"], entry["end_time"])
-        entry["distance_display"] = f"{float(entry.get('distance_km') or 0):.2f} km"
+        distance_km = float(entry.get("distance_km") or 0)
+        entry["distance_display"] = f"{distance_km:.2f} km"
+
+        # Average speed over the whole entry (start to end, including stops).
+        entry["avg_speed_kmh"] = None
+        start_time, end_time = entry.get("next_start_time"), entry.get("end_time")
+        if start_time and end_time and end_time > start_time and distance_km > 0:
+            entry["avg_speed_kmh"] = round(distance_km / ((end_time - start_time).total_seconds() / 3600), 1)
+        entry["avg_speed_display"] = f"{entry['avg_speed_kmh']:.1f} km/h" if entry["avg_speed_kmh"] is not None else "-"
+        top_speed = entry.get("top_speed_kmh")
+        entry["top_speed_display"] = f"{float(top_speed):.0f} km/h" if top_speed is not None else "-"
+        entry["calls_recorded"] = entry.get("incoming_calls") is not None
     return entries
+
+
+def group_trips(entries):
+    """Groups consecutive entries of one "continue with another person" trip together."""
+    groups = []
+    for entry in entries:
+        trip_id = entry.get("trip_id")
+        if trip_id and groups and groups[-1]["trip_id"] == trip_id:
+            groups[-1]["entries"].append(entry)
+        else:
+            groups.append({"trip_id": trip_id, "entries": [entry]})
+
+    for group in groups:
+        group["is_trip"] = len(group["entries"]) > 1
+        group["total_km"] = sum(float(e.get("distance_km") or 0) for e in group["entries"])
+        # Lists are newest first; show the trip's people in the order they were visited.
+        group["people"] = [e["work_given_person"] for e in reversed(group["entries"])]
+    return groups
 
 
 def total_duration(entries):
@@ -575,7 +730,7 @@ def get_admin_users():
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, username, role, created_at
+                SELECT id, username, role, access_level, created_at
                 FROM users
                 ORDER BY created_at DESC
                 """
@@ -842,6 +997,38 @@ def init_db():
                 ADD COLUMN IF NOT EXISTS battery_updated_at TIMESTAMP;
                 """
             )
+            # Trip statistics. Call counts stay NULL when the phone didn't report them
+            # (website drivers, or the Call log permission was refused).
+            cur.execute(
+                """
+                ALTER TABLE work_entries
+                ADD COLUMN IF NOT EXISTS top_speed_kmh NUMERIC(6, 1),
+                ADD COLUMN IF NOT EXISTS incoming_calls INTEGER,
+                ADD COLUMN IF NOT EXISTS outgoing_calls INTEGER,
+                ADD COLUMN IF NOT EXISTS missed_calls INTEGER,
+                ADD COLUMN IF NOT EXISTS trip_id INTEGER;
+                """
+            )
+            cur.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_work_entries_trip
+                ON work_entries (trip_id);
+                """
+            )
+            # Admin access levels: full (everything), edit (drivers and entries), view (read only).
+            cur.execute(
+                """
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS access_level VARCHAR(10);
+                """
+            )
+            cur.execute(
+                """
+                UPDATE users
+                SET access_level = 'full'
+                WHERE role = 'admin' AND access_level IS NULL;
+                """
+            )
             cur.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_work_entry_locations_entry_time
@@ -880,8 +1067,8 @@ def init_db():
             if cur.fetchone() is None:
                 cur.execute(
                     """
-                    INSERT INTO users (username, password_hash, role)
-                    VALUES (%s, %s, 'admin')
+                    INSERT INTO users (username, password_hash, role, access_level)
+                    VALUES (%s, %s, 'admin', 'full')
                     """,
                     (admin_username, generate_password_hash(admin_password)),
                 )
@@ -898,7 +1085,7 @@ def current_user():
         return None
     with get_db() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT id, username, role, created_at FROM users WHERE id = %s", (user_id,))
+            cur.execute("SELECT id, username, role, access_level, created_at FROM users WHERE id = %s", (user_id,))
             g.current_user = cur.fetchone()
             return g.current_user
 
@@ -926,6 +1113,47 @@ def admin_required(view):
         if not user or user["role"] != "admin":
             flash("Admin access required.", "error")
             return redirect(url_for("dashboard"))
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+# Admin access levels: "full" manages everything including other admins, "edit" manages
+# drivers and their passwords, "view" (e.g. the MD) can see everything but change nothing.
+ADMIN_ACCESS_LEVELS = ("full", "edit", "view")
+
+
+def admin_access(user):
+    if not user or user["role"] != "admin":
+        return None
+    return user.get("access_level") or "full"
+
+
+def can_edit(user):
+    return admin_access(user) in ("full", "edit")
+
+
+def can_manage_admins(user):
+    return admin_access(user) == "full"
+
+
+def admin_edit_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not can_edit(current_user()):
+            flash("Your admin access is view only.", "error")
+            return redirect(request.referrer or url_for("admin_dashboard"))
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def admin_full_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not can_manage_admins(current_user()):
+            flash("Only full admins can manage admin accounts.", "error")
+            return redirect(request.referrer or url_for("admin_dashboard"))
         return view(*args, **kwargs)
 
     return wrapped
@@ -961,7 +1189,7 @@ def user_from_api_token(token):
     with get_db() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT id, username, role, created_at, password_hash FROM users WHERE id = %s",
+                "SELECT id, username, role, access_level, created_at, password_hash FROM users WHERE id = %s",
                 (data.get("uid"),),
             )
             user = cur.fetchone()
@@ -998,6 +1226,17 @@ def api_admin_required(view):
     return wrapped
 
 
+def api_admin_edit_required(view):
+    @wraps(view)
+    @api_admin_required
+    def wrapped(*args, **kwargs):
+        if not can_edit(g.api_user):
+            return jsonify({"success": False, "message": "Your admin access is view only"}), 403
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
 @app.context_processor
 def inject_user():
     user = current_user()
@@ -1021,6 +1260,9 @@ def inject_user():
     return {
         "logged_in_user": user,
         "admin_sidebar_users": admin_sidebar_users,
+        "admin_access": admin_access(user),
+        "can_edit": can_edit(user),
+        "can_manage_admins": can_manage_admins(user),
         "app_timezone": APP_TIMEZONE,
     }
 
@@ -1127,7 +1369,7 @@ def admin_live():
             cur.execute(
                 """
                 SELECT e.id, e.user_id, u.username, e.vehicle_type, e.next_start_time, e.distance_km, e.current_lat, e.current_lng, e.location_updated_at, e.work_given_person,
-                       e.battery_level, e.battery_charging
+                       e.battery_level, e.battery_charging, e.top_speed_kmh
                 FROM work_entries e
                 JOIN users u ON u.id = e.user_id
                 WHERE e.end_time IS NULL
@@ -1170,6 +1412,10 @@ def admin_dashboard():
 @admin_required
 def admin_users():
     if request.method == "POST":
+        if not can_edit(current_user()):
+            flash("Your admin access is view only.", "error")
+            return redirect(url_for("admin_users"))
+
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
@@ -1200,6 +1446,8 @@ def admin_users():
         "admin.html",
         admin_tab="users",
         users=users,
+        admin_accounts=[u for u in users if u["role"] == "admin"],
+        admin_access_levels=ADMIN_ACCESS_LEVELS,
         entries=[],
         selected_user=None,
         total={"display": "00:00:00", "hours": 0, "entry_count": 0},
@@ -1327,6 +1575,7 @@ def admin_work():
         admin_tab="work",
         users=users,
         entries=entries,
+        entry_groups=group_trips(entries),
         selected_user=selected_user,
         total=total,
         user_summaries=user_summaries,
@@ -1338,9 +1587,143 @@ def admin_work():
     )
 
 
+@app.route("/admin/admins", methods=["POST"])
+@login_required
+@admin_required
+@admin_full_required
+def create_admin():
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+    access_level = request.form.get("access_level", "view")
+
+    if not username or not password:
+        flash("Username and password are required.", "error")
+        return redirect(url_for("admin_users"))
+    if access_level not in ADMIN_ACCESS_LEVELS:
+        flash("Choose Full, Edit or View only access.", "error")
+        return redirect(url_for("admin_users"))
+
+    try:
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO users (username, password_hash, role, access_level)
+                    VALUES (%s, %s, 'admin', %s)
+                    """,
+                    (username, generate_password_hash(password), access_level),
+                )
+            conn.commit()
+        queue_database_backup("create_admin")
+        flash(f"Admin {username} created with {access_level} access.", "success")
+    except psycopg2.errors.UniqueViolation:
+        flash("Username already exists.", "error")
+
+    return redirect(url_for("admin_users"))
+
+
+def count_full_admins(cur):
+    cur.execute(
+        "SELECT COUNT(*) AS count FROM users WHERE role = 'admin' AND COALESCE(access_level, 'full') = 'full'"
+    )
+    return int(cur.fetchone()["count"])
+
+
+@app.route("/admin/admins/<int:admin_id>/access", methods=["POST"])
+@login_required
+@admin_required
+@admin_full_required
+def update_admin_access(admin_id):
+    access_level = request.form.get("access_level", "")
+    if access_level not in ADMIN_ACCESS_LEVELS:
+        flash("Choose Full, Edit or View only access.", "error")
+        return redirect(url_for("admin_users"))
+    if admin_id == current_user()["id"]:
+        flash("You can't change your own access level.", "error")
+        return redirect(url_for("admin_users"))
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE users
+                SET access_level = %s
+                WHERE id = %s AND role = 'admin'
+                RETURNING username
+                """,
+                (access_level, admin_id),
+            )
+            updated = cur.fetchone()
+            if updated and count_full_admins(cur) == 0:
+                conn.rollback()
+                flash("At least one full admin is required.", "error")
+                return redirect(url_for("admin_users"))
+        conn.commit()
+
+    if updated:
+        flash(f"{updated['username']} now has {access_level} access.", "success")
+    else:
+        flash("Admin not found.", "error")
+    return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/admins/<int:admin_id>/reset-password", methods=["POST"])
+@login_required
+@admin_required
+@admin_full_required
+def reset_admin_password(admin_id):
+    new_password = request.form.get("new_password", "").strip()
+    if not new_password:
+        flash("New password is required.", "error")
+        return redirect(url_for("admin_users"))
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET password_hash = %s WHERE id = %s AND role = 'admin'",
+                (generate_password_hash(new_password), admin_id),
+            )
+            updated = cur.rowcount
+        conn.commit()
+
+    flash("Admin password reset." if updated else "Admin not found.", "success" if updated else "error")
+    return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/admins/<int:admin_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+@admin_full_required
+def delete_admin(admin_id):
+    if admin_id == current_user()["id"]:
+        flash("You can't delete your own admin account.", "error")
+        return redirect(url_for("admin_users"))
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM users WHERE id = %s AND role = 'admin' RETURNING username",
+                (admin_id,),
+            )
+            deleted = cur.fetchone()
+            if deleted and count_full_admins(cur) == 0:
+                conn.rollback()
+                flash("At least one full admin is required.", "error")
+                return redirect(url_for("admin_users"))
+        conn.commit()
+
+    if deleted:
+        queue_database_backup("delete_admin")
+        flash(f"Deleted admin {deleted['username']}.", "success")
+    else:
+        flash("Admin not found.", "error")
+    return redirect(url_for("admin_users"))
+
+
 @app.route("/admin/users/<int:user_id>/reset-password", methods=["POST"])
 @login_required
 @admin_required
+@admin_edit_required
 def reset_user_password(user_id):
     new_password = request.form.get("new_password", "").strip()
 
@@ -1373,6 +1756,7 @@ def reset_user_password(user_id):
 @app.route("/admin/users/<int:user_id>/delete", methods=["POST"])
 @login_required
 @admin_required
+@admin_edit_required
 def delete_user(user_id):
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -1406,7 +1790,7 @@ def download_admin_data():
 
     if selected_user_id:
         entries = get_admin_entries(selected_user_id)
-        writer.writerow(["User", "Work Given Person", "Vehicle", "Start Time", "End Time", "Total Time", "Travel Distance", "Remarks", "Submitted"])
+        writer.writerow(["User", "Work Given Person", "Vehicle", "Start Time", "End Time", "Total Time", "Travel Distance", "Top Speed", "Average Speed", "Incoming Calls", "Outgoing Calls", "Missed Calls", "Trip", "Remarks", "Submitted"])
 
         for entry in entries:
             writer.writerow(
@@ -1418,6 +1802,12 @@ def download_admin_data():
                     entry["end_time"].strftime("%Y-%m-%d %H:%M:%S") if entry["end_time"] else "In progress",
                     entry["duration"],
                     entry["distance_display"],
+                    entry["top_speed_display"],
+                    entry["avg_speed_display"],
+                    entry["incoming_calls"] if entry["calls_recorded"] else "",
+                    entry["outgoing_calls"] if entry["calls_recorded"] else "",
+                    entry["missed_calls"] if entry["calls_recorded"] else "",
+                    entry["trip_id"] or "",
                     entry["remarks"],
                     entry["created_at"].strftime("%Y-%m-%d %H:%M:%S"),
                 ]
@@ -1656,6 +2046,8 @@ def update_location():
     accuracy = data.get("accuracy")
     recorded_at = parse_client_recorded_at(data.get("recorded_at") or data.get("timestamp"))
     battery_level, battery_charging = parse_battery(data.get("battery_level"), data.get("battery_charging"))
+    speed_kmh = parse_speed_kmh(data.get("speed"), accuracy)
+    bearing = data.get("heading")
 
     location = parse_location(lat, lng)
     if not location:
@@ -1687,10 +2079,11 @@ def update_location():
 
             distance_km, updated = save_location_point(cur, entry, lat, lng, accuracy, recorded_at)
             save_battery_status(cur, entry["id"], battery_level, battery_charging)
+            save_top_speed(cur, entry["id"], speed_kmh)
         conn.commit()
 
     broadcast_driver_location(user["id"], user["username"], entry["vehicle_type"], lat, lng, distance_km,
-                              battery_level, battery_charging)
+                              battery_level, battery_charging, speed_kmh, bearing)
     return jsonify({"ok": True, "accepted": bool(updated), "distance_km": round(distance_km, 3)})
 
 
@@ -1703,6 +2096,8 @@ def background_location_update():
     accuracy = data.get("accuracy")
     recorded_at = parse_client_recorded_at(data.get("recorded_at") or data.get("timestamp"))
     battery_level, battery_charging = parse_battery(data.get("battery_level"), data.get("battery_charging"))
+    speed_kmh = parse_speed_kmh(data.get("speed"), accuracy)
+    bearing = data.get("heading")
 
     if not token:
         return jsonify({"ok": False, "message": "Tracking token is required."}), 401
@@ -1738,10 +2133,11 @@ def background_location_update():
 
             distance_km, updated = save_location_point(cur, entry, lat, lng, accuracy, recorded_at)
             save_battery_status(cur, entry["id"], battery_level, battery_charging)
+            save_top_speed(cur, entry["id"], speed_kmh)
         conn.commit()
 
     broadcast_driver_location(entry["user_id"], entry["username"], entry["vehicle_type"], lat, lng,
-                              distance_km, battery_level, battery_charging)
+                              distance_km, battery_level, battery_charging, speed_kmh, bearing)
     return jsonify({"ok": True, "accepted": bool(updated), "distance_km": round(distance_km, 3)})
 
 
@@ -1885,12 +2281,33 @@ def history():
     entries = get_history_entries(user["id"], from_date, to_date)
     total = total_duration(entries)
 
+    # history.html pages its list (per_page selector and page links) like the admin Entries page.
+    per_page = parse_positive_int(request.args.get("per_page"), ADMIN_ENTRY_LIMIT)
+    if per_page not in ADMIN_PER_PAGE_OPTIONS:
+        per_page = ADMIN_ENTRY_LIMIT if ADMIN_ENTRY_LIMIT in ADMIN_PER_PAGE_OPTIONS else ADMIN_PER_PAGE_OPTIONS[1]
+    total_pages = max(math.ceil(len(entries) / per_page), 1)
+    page = min(parse_positive_int(request.args.get("page"), 1), total_pages)
+    page_entries = entries[(page - 1) * per_page:page * per_page]
+    pagination = {
+        "page": page,
+        "total_pages": total_pages,
+        "has_previous": page > 1,
+        "has_next": page < total_pages,
+        "previous_page": max(page - 1, 1),
+        "next_page": min(page + 1, total_pages),
+        "total_count": len(entries),
+    }
+
     return render_template(
         "history.html",
-        entries=entries,
+        entries=page_entries,
+        entry_groups=group_trips(page_entries),
         from_date=from_date,
         to_date=to_date,
         total=total,
+        per_page=per_page,
+        per_page_options=ADMIN_PER_PAGE_OPTIONS,
+        pagination=pagination,
     )
 
 
@@ -1907,7 +2324,7 @@ def download_history():
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["Work Given Person", "Vehicle", "Start Time", "End Time", "Total Time", "Travel Distance", "Remarks"])
+    writer.writerow(["Work Given Person", "Vehicle", "Start Time", "End Time", "Total Time", "Travel Distance", "Top Speed", "Average Speed", "Incoming Calls", "Outgoing Calls", "Missed Calls", "Trip", "Remarks"])
 
     for entry in entries:
         writer.writerow(
@@ -1918,6 +2335,12 @@ def download_history():
                 entry["end_time"].strftime("%Y-%m-%d %H:%M:%S"),
                 entry["duration"],
                 entry["distance_display"],
+                entry["top_speed_display"],
+                entry["avg_speed_display"],
+                entry["incoming_calls"] if entry["calls_recorded"] else "",
+                entry["outgoing_calls"] if entry["calls_recorded"] else "",
+                entry["missed_calls"] if entry["calls_recorded"] else "",
+                entry["trip_id"] or "",
                 entry["remarks"],
             ]
         )
@@ -1991,6 +2414,56 @@ def end_work_entry(entry_id):
     return redirect(url_for("work_entry"))
 
 
+@app.route("/work-entry/<int:entry_id>/continue", methods=["POST"])
+@login_required
+def continue_work_entry(entry_id):
+    user = current_user()
+    if user["role"] == "admin":
+        return redirect(url_for("admin_dashboard"))
+
+    work_given_person = request.form.get("work_given_person", "").strip()
+    if work_given_person == "Other":
+        work_given_person = request.form.get("other_work_given_person", "").strip()
+    remarks = request.form.get("remarks", "").strip()
+    if not work_given_person or not remarks:
+        flash("Select the next person and add remarks.", "error")
+        return redirect(url_for("work_entry"))
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, user_id, vehicle_type, distance_km, trip_id, current_lat, current_lng,
+                       location_updated_at, next_start_time
+                FROM work_entries
+                WHERE id = %s AND user_id = %s AND end_time IS NULL
+                FOR UPDATE
+                """,
+                (entry_id, user["id"]),
+            )
+            entry = cur.fetchone()
+            if not entry:
+                flash("Work entry was already ended or not found.", "error")
+                return redirect(url_for("work_entry"))
+
+            location = (parse_location(request.form.get("lat"), request.form.get("lng"))
+                        or parse_location(entry["current_lat"], entry["current_lng"]))
+            if not location:
+                flash("Please allow location access to continue.", "error")
+                return redirect(url_for("work_entry"))
+
+            continue_with_new_person(
+                cur, entry, work_given_person, remarks, location,
+                accuracy=request.form.get("accuracy") or None,
+                recorded_at=parse_client_recorded_at(request.form.get("recorded_at")),
+            )
+        conn.commit()
+
+    queue_database_backup("continue_work")
+    flash(f"Continuing with {work_given_person}.", "success")
+    return redirect(url_for("work_entry"))
+
+
 @app.route("/api/login", methods=["POST"])
 def api_login():
     data = request.get_json() or {}
@@ -2008,6 +2481,7 @@ def api_login():
             "driver_id": user["id"],
             "name": user["username"],
             "role": user["role"],
+            "access_level": admin_access(user),
             "success": True,
             "message": "Login successful"
         })
@@ -2027,6 +2501,8 @@ def api_driver_location():
     lng = data.get("longitude")
     accuracy = data.get("accuracy")
     battery_level, battery_charging = parse_battery(data.get("battery_level"), data.get("battery_charging"))
+    speed_kmh = parse_speed_kmh(data.get("speed"), accuracy)
+    bearing = data.get("bearing")
 
     # Points queued offline under another login must not land on this user's work entry.
     claimed_driver_id = data.get("driver_id")
@@ -2064,9 +2540,10 @@ def api_driver_location():
                     (lat, lng, distance_km, entry["id"])
                 )
                 save_battery_status(cur, entry["id"], battery_level, battery_charging)
+                save_top_speed(cur, entry["id"], speed_kmh)
                 conn.commit()
                 broadcast_driver_location(driver_id, g.api_user["username"], entry["vehicle_type"], lat, lng,
-                                          distance_km, battery_level, battery_charging)
+                                          distance_km, battery_level, battery_charging, speed_kmh, bearing)
                 return jsonify({"success": True, "message": "Location updated"})
             else:
                 return jsonify({"success": False, "message": "No active work entry"}), 404
@@ -2139,8 +2616,11 @@ def api_active_work():
             "work_given_person": entry["work_given_person"],
             "vehicle_type": entry["vehicle_type"],
             "next_start_time": entry["next_start_time"].strftime("%Y-%m-%d %H:%M:%S") if entry.get("next_start_time") else None,
+            "start_epoch_ms": entry_start_epoch_ms(entry),
             "distance_display": entry["distance_display"],
-            "remarks": entry["remarks"]
+            "remarks": entry["remarks"],
+            "trip_id": entry.get("trip_id"),
+            "top_speed_kmh": float(entry["top_speed_kmh"]) if entry.get("top_speed_kmh") is not None else None,
         }
     })
 
@@ -2234,10 +2714,53 @@ def api_end_work():
             params.append(entry["id"])
 
             cur.execute(update_query, tuple(params))
+            save_call_counts(cur, entry["id"], parse_call_counts(data))
         conn.commit()
 
     queue_database_backup("end_work")
     return jsonify({"success": True, "message": "Work ended"})
+
+
+@app.route("/api/work-entry/continue", methods=["POST"])
+@api_login_required
+def api_continue_work():
+    data = request.get_json() or {}
+    work_given_person = (data.get("work_given_person") or "").strip()
+    remarks = (data.get("remarks") or "").strip()
+    if not work_given_person or not remarks:
+        return jsonify({"success": False, "message": "Select the next person and add remarks"}), 400
+
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, user_id, vehicle_type, distance_km, trip_id, current_lat, current_lng,
+                       location_updated_at, next_start_time
+                FROM work_entries
+                WHERE user_id = %s AND end_time IS NULL
+                ORDER BY created_at DESC
+                LIMIT 1
+                FOR UPDATE
+                """,
+                (g.api_user["id"],),
+            )
+            entry = cur.fetchone()
+            if not entry:
+                return jsonify({"success": False, "message": "No active work found"}), 404
+
+            location = (parse_location(data.get("lat"), data.get("lng"))
+                        or parse_location(entry["current_lat"], entry["current_lng"]))
+            if not location:
+                return jsonify({"success": False, "message": "Location is required"}), 400
+
+            new_entry_id = continue_with_new_person(
+                cur, entry, work_given_person, remarks, location,
+                accuracy=data.get("accuracy"), call_counts=parse_call_counts(data),
+            )
+        conn.commit()
+
+    queue_database_backup("continue_work")
+    return jsonify({"success": True, "message": f"Continuing with {work_given_person}", "entry_id": new_entry_id})
 
 @app.route("/api/history", methods=["GET"])
 @api_login_required
@@ -2258,7 +2781,8 @@ def api_history():
             "end_time": entry["end_time"].strftime("%Y-%m-%d %H:%M:%S") if entry.get("end_time") else None,
             "duration": entry["duration"],
             "distance_display": entry["distance_display"],
-            "remarks": entry["remarks"]
+            "remarks": entry["remarks"],
+            **entry_stats_fields(entry),
         })
 
     return jsonify({"success": True, "entries": history_list})
@@ -2293,6 +2817,8 @@ def api_admin_dashboard():
 @api_admin_required
 def api_admin_users():
     if request.method == "POST":
+        if not can_edit(g.api_user):
+            return jsonify({"success": False, "message": "Your admin access is view only"}), 403
         data = request.get_json() or {}
         username = data.get("username", "").strip()
         password = data.get("password", "")
@@ -2325,7 +2851,7 @@ def api_admin_users():
     return jsonify({"success": True, "users": user_list})
 
 @app.route("/api/admin/users/<int:user_id>/reset-password", methods=["POST"])
-@api_admin_required
+@api_admin_edit_required
 def api_admin_reset_password(user_id):
     data = request.get_json() or {}
     new_password = data.get("new_password", "")
@@ -2346,7 +2872,7 @@ def api_admin_reset_password(user_id):
     return jsonify({"success": True, "message": "Password reset successfully"})
 
 @app.route("/api/admin/users/<int:user_id>/delete", methods=["POST"])
-@api_admin_required
+@api_admin_edit_required
 def api_admin_delete_user(user_id):
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -2376,7 +2902,8 @@ def api_admin_work():
             "end_time": entry["end_time"].strftime("%Y-%m-%d %H:%M:%S") if entry.get("end_time") else None,
             "duration": entry["duration"],
             "distance_display": entry["distance_display"],
-            "remarks": entry["remarks"]
+            "remarks": entry["remarks"],
+            **entry_stats_fields(entry),
         })
     return jsonify({"success": True, "entries": history_list})
 
