@@ -13,6 +13,9 @@ object Constants {
     const val LOCATION_UPDATE_INTERVAL = 3000L // 3 seconds when moving
     const val LOCATION_FASTEST_INTERVAL = 1000L // 1 second
     const val LOCATION_MAX_WAIT_TIME = 5000L // 5 seconds
+    // A parked phone gets no new fixes, so the last position is re-sent at this interval
+    // to keep battery and "last updated" fresh on the admin's Live Tracking page.
+    const val LOCATION_HEARTBEAT_INTERVAL = 60_000L // 1 minute
     
     // Bubble Overlay
     const val OVERLAY_PREFS = "overlay_prefs"

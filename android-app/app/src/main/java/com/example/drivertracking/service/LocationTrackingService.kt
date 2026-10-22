@@ -34,12 +34,16 @@ import com.google.android.gms.location.*
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -59,6 +63,8 @@ class LocationTrackingService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var isTracking = false
+    private var heartbeatJob: Job? = null
+    @Volatile private var lastSentAt = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -116,13 +122,15 @@ class LocationTrackingService : Service() {
         )
 
         setupFloatingBubble()
-        
+        startHeartbeat()
+
         // Save state to preferences indicating we should restart on boot
         getSharedPreferences("TrackingPrefs", Context.MODE_PRIVATE).edit().putBoolean("isTracking", true).apply()
     }
 
     private fun stopTracking() {
         isTracking = false
+        heartbeatJob?.cancel()
         fusedLocationClient.removeLocationUpdates(locationCallback)
         socketManager.disconnect()
         removeFloatingBubble()
@@ -142,9 +150,29 @@ class LocationTrackingService : Service() {
         return (if (level in 0..100) level else null) to batteryManager.isCharging
     }
 
+    // While parked, Android stops delivering fixes and tiny moves are filtered out above,
+    // so nothing would be sent. Re-send the last known position (speed 0) once a minute.
+    @SuppressLint("MissingPermission")
+    private fun startHeartbeat() {
+        heartbeatJob?.cancel()
+        heartbeatJob = serviceScope.launch {
+            while (isActive) {
+                delay(Constants.LOCATION_HEARTBEAT_INTERVAL)
+                if (System.currentTimeMillis() - lastSentAt < Constants.LOCATION_HEARTBEAT_INTERVAL) continue
+                val known = lastLocation ?: try {
+                    com.google.android.gms.tasks.Tasks.await(fusedLocationClient.lastLocation, 10, TimeUnit.SECONDS)
+                } catch (e: Exception) {
+                    null
+                }
+                known?.let { processLocation(Location(it).apply { speed = 0f }) }
+            }
+        }
+    }
+
     private fun processLocation(location: Location) {
         val driverId = sessionManager.getDriverId()
         if (driverId == -1) return
+        lastSentAt = System.currentTimeMillis()
 
         val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
         sdf.timeZone = TimeZone.getTimeZone("UTC")
@@ -328,6 +356,7 @@ class LocationTrackingService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        heartbeatJob?.cancel()
         removeFloatingBubble()
         socketManager.disconnect()
     }

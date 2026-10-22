@@ -78,12 +78,11 @@
         color: #475569;
         flex: none;
     }
-    .driver-marker-icon,
     .vehicle-marker-icon {
         background: transparent;
         border: 0;
     }
-    /* Selected driver: top-down car or bike, rotated to the direction of travel. */
+    /* Each driver: top-down car or bike, rotated to the direction of travel. */
     .vehicle-marker {
         align-items: center;
         display: flex;
@@ -95,7 +94,6 @@
     }
     /* Glide between location updates instead of jumping (but not while zooming). */
     .leaflet-marker-icon.vehicle-marker-icon,
-    .leaflet-marker-icon.driver-marker-icon,
     .leaflet-tooltip.marker-label {
         transition: transform 1s linear;
     }
@@ -220,17 +218,6 @@
     let followedUserId = null;
 
     // ---- SVG icons ---------------------------------------------------------------
-    const PIN_ICON = L.divIcon({
-        className: 'driver-marker-icon',
-        html: '<svg viewBox="0 0 32 44" width="32" height="44" aria-hidden="true">'
-            + '<path d="M16 1C7.7 1 1 7.6 1 15.8 1 27 16 43 16 43s15-16 15-27.2C31 7.6 24.3 1 16 1z" fill="#2563eb" stroke="#ffffff" stroke-width="2"/>'
-            + '<circle cx="16" cy="15.5" r="6" fill="#ffffff"/></svg>',
-        iconSize: [32, 44],
-        iconAnchor: [16, 43],
-        popupAnchor: [0, -40],
-        tooltipAnchor: [0, 2]
-    });
-
     // Top-down vehicles pointing up (north), rotated by the GPS bearing.
     const CAR_SVG = '<svg viewBox="0 0 40 72" width="30" height="54" aria-hidden="true">'
         + '<rect x="3" y="12" width="5" height="12" rx="2" fill="#111827"/><rect x="32" y="12" width="5" height="12" rx="2" fill="#111827"/>'
@@ -327,9 +314,14 @@
         driverSelect.appendChild(option);
     }
 
+    function iconKind(driver) {
+        return (driver.vehicle_type || '').toLowerCase() === 'bike' ? 'bike' : 'car';
+    }
+
     function refreshIcon(userId) {
         const marker = markers[userId];
-        marker.setIcon(userId === followedUserId ? vehicleIcon(drivers[userId]) : PIN_ICON);
+        marker.setIcon(vehicleIcon(drivers[userId]));
+        marker.iconKind = iconKind(drivers[userId]);
         // The name label keeps the old icon's position until it is re-positioned.
         if (marker.getTooltip()) {
             marker.getTooltip().update();
@@ -343,18 +335,18 @@
         if (markers[userId]) {
             markers[userId].setLatLng([lat, lng]);
         } else {
-            markers[userId] = L.marker([lat, lng], { icon: PIN_ICON }).addTo(map)
+            markers[userId] = L.marker([lat, lng], { icon: vehicleIcon(driver) }).addTo(map)
                 .bindPopup('')
                 .bindTooltip('', { permanent: true, direction: 'bottom', className: 'marker-label', offset: [0, 4] });
+            markers[userId].iconKind = iconKind(driver);
             addDriverOption(userId, driver.username);
         }
-        if (userId === followedUserId) {
-            const rotator = markers[userId].getElement()?.querySelector('.vehicle-marker');
-            if (rotator) {
-                rotator.style.transform = `rotate(${driver.bearing || 0}deg)`;
-            } else {
-                refreshIcon(userId);
-            }
+        // Turn the car/bike to the direction of travel (swap the drawing if the vehicle changed).
+        const rotator = markers[userId].getElement()?.querySelector('.vehicle-marker');
+        if (rotator && markers[userId].iconKind === iconKind(driver)) {
+            rotator.style.transform = `rotate(${driver.bearing || 0}deg)`;
+        } else {
+            refreshIcon(userId);
         }
         markers[userId].setPopupContent(popupHtml(driver));
         markers[userId].setTooltipContent(tooltipHtml(driver));
@@ -383,15 +375,11 @@
         map.fitBounds(bounds, {padding: [50, 50], maxZoom: 16});
     }
 
-    // Selecting a driver flies to them, shows their car/bike instead of the pin, and
-    // keeps the map following their live position.
+    // Selecting a driver flies to them and keeps the map following their live position.
     window.focusDriver = function(userId) {
-        const previous = followedUserId;
         followedUserId = userId ? Number(userId) : null;
-        if (previous && markers[previous]) refreshIcon(previous);
         const marker = markers[followedUserId];
         if (marker) {
-            refreshIcon(followedUserId);
             map.flyTo(marker.getLatLng(), 16);
             marker.openPopup();
         }
