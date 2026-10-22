@@ -44,8 +44,17 @@ fun LiveMapView(modifier: Modifier = Modifier) {
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
     val mapView = remember {
+        org.osmdroid.config.Configuration.getInstance().apply {
+            load(context, context.getSharedPreferences("osmdroid", android.content.Context.MODE_PRIVATE))
+            // tile.openstreetmap.org blocks osmdroid's default "osmdroid" user agent with
+            // "403 Access blocked" tiles; its usage policy requires an app-specific one.
+            userAgentValue = "RoadSync-Android (${context.packageName})"
+            // The blocked tiles arrive as normal images and were cached; use a fresh
+            // app-private cache so they are never shown again.
+            osmdroidBasePath = java.io.File(context.cacheDir, "osmdroid")
+            osmdroidTileCache = java.io.File(context.cacheDir, "osmdroid/tiles-v2")
+        }
         org.osmdroid.views.MapView(context).apply {
-            org.osmdroid.config.Configuration.getInstance().load(context, context.getSharedPreferences("osmdroid", android.content.Context.MODE_PRIVATE))
             setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
             controller.setZoom(18.0)

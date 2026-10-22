@@ -1,7 +1,9 @@
 package com.example.drivertracking
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,7 +44,11 @@ class MainActivity : ComponentActivity() {
         syncWorkRequest
     )
 
-    enableEdgeToEdge()
+    // The app is always light, so keep dark status/navigation bar icons in dark mode too.
+    enableEdgeToEdge(
+        statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
+        navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.argb(0x80, 0x1b, 0x1b, 0x1b))
+    )
     setContent {
       DriverTrackingTheme { Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { com.example.drivertracking.ui.navigation.AppNavigation(sessionManager) } }
     }

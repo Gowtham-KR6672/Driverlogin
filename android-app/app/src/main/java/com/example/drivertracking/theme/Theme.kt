@@ -1,7 +1,6 @@
 package com.example.drivertracking.theme
 
 import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -44,7 +43,10 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun DriverTrackingTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
+  // The screens use fixed light colours (LightBackground, white cards), so following the
+  // phone's dark mode mixed light-on-light text into them. Stay light until the screens
+  // are reworked to use theme colours.
+  darkTheme: Boolean = false,
   // Disable dynamic color by default to enforce our premium brand palette
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit,
