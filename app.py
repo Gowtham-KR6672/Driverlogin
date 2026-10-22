@@ -344,6 +344,50 @@ def save_location_point(cur, entry, lat, lng, accuracy, recorded_at=None):
     return distance_km, rowcount
 
 
+def parse_battery(level, charging):
+    try:
+        level = int(round(float(level)))
+    except (TypeError, ValueError):
+        return None, None
+    if not 0 <= level <= 100:
+        return None, None
+    return level, charging if isinstance(charging, bool) else None
+
+
+def save_battery_status(cur, entry_id, level, charging):
+    # Saved on every report, even when the location point itself is skipped for not moving.
+    if level is None:
+        return
+    cur.execute(
+        """
+        UPDATE work_entries
+        SET battery_level = %s, battery_charging = %s, battery_updated_at = %s
+        WHERE id = %s
+        """,
+        (level, charging, get_local_now(), entry_id),
+    )
+
+
+def broadcast_driver_location(user_id, username, vehicle_type, lat, lng, distance_km,
+                              battery_level=None, battery_charging=None):
+    # The Live Tracking page (room "admin_live") and the per-driver admin map listen for this.
+    payload = {
+        "driver_id": user_id,
+        "username": username,
+        "vehicle_type": vehicle_type,
+        "lat": float(lat),
+        "lng": float(lng),
+        "latitude": float(lat),
+        "longitude": float(lng),
+        "total_distance_km": round(float(distance_km or 0), 3),
+        "battery_level": battery_level,
+        "battery_charging": battery_charging,
+        "updated_at": get_local_now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    socketio.emit("location_updated", payload, room="admin_live")
+    socketio.emit("location_updated", payload, room=f"driver_{user_id}")
+
+
 def add_duration(entries):
     for entry in entries:
         entry["duration"] = format_duration(entry["next_start_time"], entry["end_time"])
@@ -792,6 +836,14 @@ def init_db():
             )
             cur.execute(
                 """
+                ALTER TABLE work_entries
+                ADD COLUMN IF NOT EXISTS battery_level SMALLINT,
+                ADD COLUMN IF NOT EXISTS battery_charging BOOLEAN,
+                ADD COLUMN IF NOT EXISTS battery_updated_at TIMESTAMP;
+                """
+            )
+            cur.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_work_entry_locations_entry_time
                 ON work_entry_locations (work_entry_id, recorded_at);
                 """
@@ -1074,7 +1126,8 @@ def admin_live():
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT e.id, e.user_id, u.username, e.vehicle_type, e.next_start_time, e.distance_km, e.current_lat, e.current_lng, e.location_updated_at, e.work_given_person
+                SELECT e.id, e.user_id, u.username, e.vehicle_type, e.next_start_time, e.distance_km, e.current_lat, e.current_lng, e.location_updated_at, e.work_given_person,
+                       e.battery_level, e.battery_charging
                 FROM work_entries e
                 JOIN users u ON u.id = e.user_id
                 WHERE e.end_time IS NULL
@@ -1602,6 +1655,7 @@ def update_location():
     lng = data.get("lng")
     accuracy = data.get("accuracy")
     recorded_at = parse_client_recorded_at(data.get("recorded_at") or data.get("timestamp"))
+    battery_level, battery_charging = parse_battery(data.get("battery_level"), data.get("battery_charging"))
 
     location = parse_location(lat, lng)
     if not location:
@@ -1617,7 +1671,7 @@ def update_location():
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, distance_km, current_lat, current_lng, location_updated_at, next_start_time
+                SELECT id, distance_km, current_lat, current_lng, location_updated_at, next_start_time, vehicle_type
                 FROM work_entries
                 WHERE user_id = %s AND end_time IS NULL
                 ORDER BY created_at DESC
@@ -1632,8 +1686,11 @@ def update_location():
                 return jsonify({"ok": False, "message": "No active work entry."}), 404
 
             distance_km, updated = save_location_point(cur, entry, lat, lng, accuracy, recorded_at)
+            save_battery_status(cur, entry["id"], battery_level, battery_charging)
         conn.commit()
 
+    broadcast_driver_location(user["id"], user["username"], entry["vehicle_type"], lat, lng, distance_km,
+                              battery_level, battery_charging)
     return jsonify({"ok": True, "accepted": bool(updated), "distance_km": round(distance_km, 3)})
 
 
@@ -1645,6 +1702,7 @@ def background_location_update():
     lng = data.get("lng")
     accuracy = data.get("accuracy")
     recorded_at = parse_client_recorded_at(data.get("recorded_at") or data.get("timestamp"))
+    battery_level, battery_charging = parse_battery(data.get("battery_level"), data.get("battery_charging"))
 
     if not token:
         return jsonify({"ok": False, "message": "Tracking token is required."}), 401
@@ -1663,11 +1721,13 @@ def background_location_update():
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT id, distance_km, current_lat, current_lng, location_updated_at, next_start_time
-                FROM work_entries
-                WHERE tracking_token = %s AND end_time IS NULL
+                SELECT e.id, e.distance_km, e.current_lat, e.current_lng, e.location_updated_at,
+                       e.next_start_time, e.vehicle_type, e.user_id, u.username
+                FROM work_entries e
+                JOIN users u ON u.id = e.user_id
+                WHERE e.tracking_token = %s AND e.end_time IS NULL
                 LIMIT 1
-                FOR UPDATE
+                FOR UPDATE OF e
                 """,
                 (token,),
             )
@@ -1677,8 +1737,11 @@ def background_location_update():
                 return jsonify({"ok": False, "message": "No active work entry."}), 404
 
             distance_km, updated = save_location_point(cur, entry, lat, lng, accuracy, recorded_at)
+            save_battery_status(cur, entry["id"], battery_level, battery_charging)
         conn.commit()
 
+    broadcast_driver_location(entry["user_id"], entry["username"], entry["vehicle_type"], lat, lng,
+                              distance_km, battery_level, battery_charging)
     return jsonify({"ok": True, "accepted": bool(updated), "distance_km": round(distance_km, 3)})
 
 
@@ -1963,6 +2026,7 @@ def api_driver_location():
     lat = data.get("latitude")
     lng = data.get("longitude")
     accuracy = data.get("accuracy")
+    battery_level, battery_charging = parse_battery(data.get("battery_level"), data.get("battery_charging"))
 
     # Points queued offline under another login must not land on this user's work entry.
     claimed_driver_id = data.get("driver_id")
@@ -1999,7 +2063,10 @@ def api_driver_location():
                     """,
                     (lat, lng, distance_km, entry["id"])
                 )
+                save_battery_status(cur, entry["id"], battery_level, battery_charging)
                 conn.commit()
+                broadcast_driver_location(driver_id, g.api_user["username"], entry["vehicle_type"], lat, lng,
+                                          distance_km, battery_level, battery_charging)
                 return jsonify({"success": True, "message": "Location updated"})
             else:
                 return jsonify({"success": False, "message": "No active work entry"}), 404
@@ -2340,6 +2407,9 @@ def handle_driver_location_update(data):
         return
     # A client can only broadcast its own location.
     data['driver_id'] = user["id"]
+    # The Android app sends latitude/longitude; the admin pages read lat/lng.
+    data.setdefault('lat', data.get('latitude'))
+    data.setdefault('lng', data.get('longitude'))
     emit('location_updated', data, room=f"driver_{user['id']}")
     emit('location_updated', data, room="admin_live")
 

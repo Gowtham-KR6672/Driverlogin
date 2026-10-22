@@ -23,7 +23,10 @@ data class LocationPayload(
     val speed: Float,
     val accuracy: Float,
     val bearing: Float,
-    val timestamp: String
+    val timestamp: String,
+    // Only sent with live locations; points synced later from the offline queue leave these null.
+    @SerializedName("battery_level") val batteryLevel: Int? = null,
+    @SerializedName("battery_charging") val batteryCharging: Boolean? = null
 )
 
 data class LocationResponse(

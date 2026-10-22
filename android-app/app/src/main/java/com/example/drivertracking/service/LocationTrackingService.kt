@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.location.Location
+import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
@@ -132,6 +133,15 @@ class LocationTrackingService : Service() {
         stopSelf()
     }
 
+    // Battery percentage (0-100) and charging state for the admin's Live Tracking page.
+    // BatteryManager needs no permission; unsupported devices report an out-of-range level.
+    private fun readBattery(): Pair<Int?, Boolean?> {
+        val batteryManager = getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+            ?: return null to null
+        val level = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        return (if (level in 0..100) level else null) to batteryManager.isCharging
+    }
+
     private fun processLocation(location: Location) {
         val driverId = sessionManager.getDriverId()
         if (driverId == -1) return
@@ -152,6 +162,7 @@ class LocationTrackingService : Service() {
         )
 
         serviceScope.launch {
+            val (batteryLevel, batteryCharging) = readBattery()
             val payload = LocationPayload(
                 driverId = driverId,
                 latitude = location.latitude,
@@ -159,7 +170,9 @@ class LocationTrackingService : Service() {
                 speed = location.speed,
                 accuracy = location.accuracy,
                 bearing = location.bearing,
-                timestamp = timestamp
+                timestamp = timestamp,
+                batteryLevel = batteryLevel,
+                batteryCharging = batteryCharging
             )
             
             // Try to send to API
