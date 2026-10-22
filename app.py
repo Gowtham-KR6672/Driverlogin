@@ -57,7 +57,6 @@ if PG_DUMP_PATH is None:
 
 _db_pool = None
 _db_pool_lock = threading.Lock()
-_timezone_ready_connections = set()
 
 
 def get_db_pool():
@@ -84,12 +83,13 @@ def get_db():
     close_connection = False
 
     try:
-        conn_id = id(conn)
-        if conn_id not in _timezone_ready_connections:
+        # New connections start in the server's time zone (UTC on Supabase) and the pool
+        # replaces connections over time, so check the session's actual time zone every
+        # time. libpq tracks it locally, so this costs no round trip once it is set.
+        if conn.info.parameter_status("TimeZone") != APP_TIMEZONE:
             with conn.cursor() as cur:
                 cur.execute("SET TIME ZONE %s", (APP_TIMEZONE,))
             conn.commit()
-            _timezone_ready_connections.add(conn_id)
 
         yield conn
     except Exception:
