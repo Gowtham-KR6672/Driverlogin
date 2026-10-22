@@ -28,6 +28,9 @@ interface LocationApi {
     @POST("/api/work-entry/end")
     suspend fun endWork(@Body request: EndWorkRequest): Response<GenericResponse>
 
+    @POST("/api/work-entry/continue")
+    suspend fun continueWork(@Body request: ContinueWorkRequest): Response<GenericResponse>
+
     @GET("/api/history")
     suspend fun getHistory(@retrofit2.http.Query("driver_id") driverId: Int): Response<HistoryResponse>
 

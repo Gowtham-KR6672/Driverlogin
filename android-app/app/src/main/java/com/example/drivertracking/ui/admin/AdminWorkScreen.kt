@@ -12,6 +12,9 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.drivertracking.data.remote.AdminUser
 import com.example.drivertracking.data.remote.HistoryEntry
+import com.example.drivertracking.data.remote.avgSpeedText
+import com.example.drivertracking.data.remote.callsText
+import com.example.drivertracking.data.remote.topSpeedText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -98,6 +101,15 @@ fun AdminEntryCard(entry: HistoryEntry) {
             Text(text = "Ended: ${entry.endTime ?: "In Progress"}")
             Text(text = "Duration: ${entry.duration}")
             Text(text = "Distance: ${entry.distanceDisplay}")
+            Text(text = "Top speed: ${entry.topSpeedText()} · Avg speed: ${entry.avgSpeedText()}")
+            Text(text = "Calls: ${entry.callsText()}")
+            if (entry.tripId != null) {
+                Text(
+                    text = "Part of trip #${entry.tripId}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             if (!entry.remarks.isNullOrEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(text = "Remarks: ${entry.remarks}", style = MaterialTheme.typography.bodySmall)

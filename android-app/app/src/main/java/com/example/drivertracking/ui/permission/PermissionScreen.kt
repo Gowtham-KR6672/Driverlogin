@@ -54,6 +54,11 @@ fun PermissionScreen(navController: NavController) {
         )
     }
 
+    // Optional: lets the app count calls during work (by type only). Not required to continue.
+    var hasCallLogPermission by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED)
+    }
+
     var isIgnoringBatteryOptimizations by remember {
         mutableStateOf(powerManager.isIgnoringBatteryOptimizations(context.packageName))
     }
@@ -73,6 +78,7 @@ fun PermissionScreen(navController: NavController) {
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         hasLocationPermission = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: hasLocationPermission
+        hasCallLogPermission = permissions[Manifest.permission.READ_CALL_LOG] ?: hasCallLogPermission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             hasNotificationPermission = permissions[Manifest.permission.POST_NOTIFICATIONS] ?: hasNotificationPermission
         }
@@ -145,6 +151,13 @@ fun PermissionScreen(navController: NavController) {
             title = "Allow Background Usage (Battery)",
             isGranted = isIgnoringBatteryOptimizations
         )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        PermissionItem(
+            title = "Call log (counts work calls only, no numbers)",
+            isGranted = hasCallLogPermission
+        )
         
         Spacer(modifier = Modifier.height(48.dp))
         
@@ -152,7 +165,8 @@ fun PermissionScreen(navController: NavController) {
             onClick = {
                 val permissionsToRequest = mutableListOf(
                     Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.READ_CALL_LOG
                 )
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)

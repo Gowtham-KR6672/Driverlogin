@@ -19,6 +19,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Motorcycle
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.*
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -36,6 +40,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.drivertracking.data.remote.HistoryEntry
+import com.example.drivertracking.data.remote.avgSpeedText
+import com.example.drivertracking.data.remote.callsText
+import com.example.drivertracking.data.remote.topSpeedText
 import com.example.drivertracking.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -220,6 +227,14 @@ fun HistoryCard(entry: HistoryEntry, context: android.content.Context, authToken
                                 color = TextGray
                             )
                         }
+                        if (entry.tripId != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Link, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Trip #${entry.tripId}", style = MaterialTheme.typography.bodySmall, color = BrandBlue, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
                 
@@ -253,6 +268,12 @@ fun HistoryCard(entry: HistoryEntry, context: android.content.Context, authToken
             DetailRow(icon = Icons.Default.Timer, label = "Duration", value = entry.duration)
             Spacer(modifier = Modifier.height(12.dp))
             DetailRow(icon = Icons.Default.LocationOn, label = "Distance", value = entry.distanceDisplay)
+            Spacer(modifier = Modifier.height(12.dp))
+            DetailRow(icon = Icons.Default.Speed, label = "Top speed", value = entry.topSpeedText())
+            Spacer(modifier = Modifier.height(12.dp))
+            DetailRow(icon = Icons.Default.ShowChart, label = "Avg speed", value = entry.avgSpeedText())
+            Spacer(modifier = Modifier.height(12.dp))
+            DetailRow(icon = Icons.Default.Phone, label = "Calls", value = entry.callsText())
             
             if (entry.remarks.isNotBlank()) {
                 Spacer(modifier = Modifier.height(16.dp))

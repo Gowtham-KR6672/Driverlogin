@@ -57,6 +57,15 @@ class SessionManager @Inject constructor(@ApplicationContext context: Context) {
         return sharedPreferences.getString(Constants.KEY_USER_ROLE, null)
     }
 
+    /** Admins only: "full", "edit" or "view". */
+    fun saveAccessLevel(level: String?) {
+        sharedPreferences.edit().putString(Constants.KEY_ACCESS_LEVEL, level).apply()
+    }
+
+    fun canEdit(): Boolean {
+        return sharedPreferences.getString(Constants.KEY_ACCESS_LEVEL, null) != "view"
+    }
+
     fun clearSession() {
         sharedPreferences.edit().clear().apply()
     }

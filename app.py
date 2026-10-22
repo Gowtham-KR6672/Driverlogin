@@ -2846,7 +2846,8 @@ def api_admin_users():
             "id": u["id"],
             "username": u["username"],
             "role": u["role"],
-            "created_at": u["created_at"].strftime("%Y-%m-%d %H:%M:%S")
+            "created_at": u["created_at"].strftime("%Y-%m-%d %H:%M:%S"),
+            "access_level": admin_access(u),
         })
     return jsonify({"success": True, "users": user_list})
 

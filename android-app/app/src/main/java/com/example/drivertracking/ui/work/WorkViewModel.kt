@@ -3,16 +3,21 @@ package com.example.drivertracking.ui.work
 import android.location.Location
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.drivertracking.data.remote.ContinueWorkRequest
 import com.example.drivertracking.data.remote.EndWorkRequest
 import com.example.drivertracking.data.remote.LocationApi
 import com.example.drivertracking.data.remote.StartWorkRequest
 import com.example.drivertracking.data.remote.WorkEntry
+import com.example.drivertracking.util.CallCounts
+import com.example.drivertracking.util.CallLogCounter
 import com.example.drivertracking.util.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 data class WorkUiState(
@@ -26,7 +31,8 @@ data class WorkUiState(
 @HiltViewModel
 class WorkViewModel @Inject constructor(
     private val api: LocationApi,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val callLogCounter: CallLogCounter
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(WorkUiState())
@@ -101,6 +107,11 @@ class WorkViewModel @Inject constructor(
         }
     }
 
+    // Calls made and received since the active entry started (null if not allowed/known).
+    private suspend fun callsForActiveEntry(): CallCounts? = withContext(Dispatchers.IO) {
+        callLogCounter.countSince(_uiState.value.activeEntry?.startEpochMs)
+    }
+
     fun endWork(location: Location?) {
         val driverId = sessionManager.getDriverId()
         if (driverId == -1) return
@@ -108,11 +119,15 @@ class WorkViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(isLoading = true, error = null)
         viewModelScope.launch {
             try {
+                val calls = callsForActiveEntry()
                 val request = EndWorkRequest(
                     driverId = driverId,
                     endLat = location?.latitude,
                     endLng = location?.longitude,
-                    remarks = null
+                    remarks = null,
+                    incomingCalls = calls?.incoming,
+                    outgoingCalls = calls?.outgoing,
+                    missedCalls = calls?.missed
                 )
                 val response = api.endWork(request)
                 if (response.isSuccessful) {
@@ -124,6 +139,38 @@ class WorkViewModel @Inject constructor(
                     }
                 } else {
                     _uiState.value = _uiState.value.copy(isLoading = false, error = "Server error")
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(isLoading = false, error = "Network error")
+            }
+        }
+    }
+
+    /** Ends the current work here and starts the next one for [person] from the same spot. */
+    fun continueWork(person: String, remarks: String, location: Location?) {
+        _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+        viewModelScope.launch {
+            try {
+                val calls = callsForActiveEntry()
+                val request = ContinueWorkRequest(
+                    workGivenPerson = person,
+                    remarks = remarks,
+                    lat = location?.latitude,
+                    lng = location?.longitude,
+                    accuracy = location?.accuracy,
+                    incomingCalls = calls?.incoming,
+                    outgoingCalls = calls?.outgoing,
+                    missedCalls = calls?.missed
+                )
+                val response = api.continueWork(request)
+                val body = response.body()
+                if (response.isSuccessful && body != null && body.success) {
+                    fetchActiveWork()
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = body?.message ?: "Could not continue with $person"
+                    )
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(isLoading = false, error = "Network error")

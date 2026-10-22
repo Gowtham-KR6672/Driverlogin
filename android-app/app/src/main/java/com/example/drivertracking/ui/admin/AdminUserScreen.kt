@@ -40,8 +40,10 @@ fun AdminUserScreen(navController: NavController, viewModel: AdminViewModel) {
             ) 
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showCreateDialog = true }) {
-                Text("+")
+            if (viewModel.canEdit) {
+                FloatingActionButton(onClick = { showCreateDialog = true }) {
+                    Text("+")
+                }
             }
         }
     ) { paddingValues ->
@@ -55,9 +57,19 @@ fun AdminUserScreen(navController: NavController, viewModel: AdminViewModel) {
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    if (!viewModel.canEdit) {
+                        item {
+                            Text(
+                                "View-only access: you can see users but not change them.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
                     items(users!!) { user ->
                         AdminUserCard(
                             user = user,
+                            canEdit = viewModel.canEdit,
                             onDelete = {
                                 viewModel.deleteUser(user.id)
                             },
@@ -108,7 +120,7 @@ fun AdminUserScreen(navController: NavController, viewModel: AdminViewModel) {
 }
 
 @Composable
-fun AdminUserCard(user: AdminUser, onDelete: () -> Unit, onReset: (String) -> Unit) {
+fun AdminUserCard(user: AdminUser, canEdit: Boolean, onDelete: () -> Unit, onReset: (String) -> Unit) {
     var showResetDialog by remember { mutableStateOf(false) }
     var resetPasswordText by remember { mutableStateOf("") }
 
@@ -148,11 +160,17 @@ fun AdminUserCard(user: AdminUser, onDelete: () -> Unit, onReset: (String) -> Un
                     shape = MaterialTheme.shapes.small,
                     color = if (user.role == "admin") MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer
                 ) {
-                    Text(text = user.role.uppercase(), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = if (user.role == "admin") MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer)
+                    val accessLabel = when (user.accessLevel) {
+                        "view" -> " · VIEW ONLY"
+                        "edit" -> " · EDIT"
+                        "full" -> " · FULL"
+                        else -> ""
+                    }
+                    Text(text = user.role.uppercase() + (if (user.role == "admin") accessLabel else ""), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = if (user.role == "admin") MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSecondaryContainer)
                 }
             }
 
-            if (user.role == "user") {
+            if (user.role == "user" && canEdit) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     OutlinedButton(onClick = { showResetDialog = true }) {

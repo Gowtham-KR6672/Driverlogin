@@ -45,6 +45,7 @@ class LoginViewModel @Inject constructor(
                         loginResponse.driverId?.let { sessionManager.saveDriverId(it) }
                         loginResponse.name?.let { sessionManager.saveUserName(it) }
                         loginResponse.role?.let { sessionManager.saveUserRole(it) }
+                        sessionManager.saveAccessLevel(loginResponse.accessLevel)
                         _uiState.value = LoginUiState.Success
                     } else {
                         _uiState.value = LoginUiState.Error(loginResponse?.message ?: "Login failed")

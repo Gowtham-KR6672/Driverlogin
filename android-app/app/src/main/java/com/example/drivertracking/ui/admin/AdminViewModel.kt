@@ -3,6 +3,7 @@ package com.example.drivertracking.ui.admin
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.drivertracking.data.remote.*
+import com.example.drivertracking.util.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,8 +14,12 @@ import javax.inject.Inject
 // Admin calls are authorized by the Bearer token that AppModule adds to every request.
 @HiltViewModel
 class AdminViewModel @Inject constructor(
-    private val api: LocationApi
+    private val api: LocationApi,
+    sessionManager: SessionManager
 ) : ViewModel() {
+
+    // View-only admins (e.g. the MD) can see users but not create, reset or delete them.
+    val canEdit: Boolean = sessionManager.canEdit()
 
     // Dashboard state
     private val _dashboardState = MutableStateFlow<AdminDashboardResponse?>(null)

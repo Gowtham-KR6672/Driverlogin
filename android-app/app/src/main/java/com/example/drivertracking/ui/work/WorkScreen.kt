@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notes
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Stop
@@ -101,6 +102,8 @@ fun LiveMapView(modifier: Modifier = Modifier) {
     )
 }
 
+val WORK_PEOPLE = listOf("Vijay Anand P", "Shajahan S", "Prem Anand Y", "HR Department", "Manager", "IT Department", "Other")
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkScreen(
@@ -124,8 +127,25 @@ fun WorkScreen(
     }
 
     LaunchedEffect(Unit) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        val missing = listOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.READ_CALL_LOG
+        ).filter { ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isNotEmpty()) {
+            permissionLauncher.launch(missing.toTypedArray())
+        }
+    }
+
+    // Current GPS fix for End Work / Continue (null without permission; the server then
+    // uses the last known location).
+    fun withCurrentLocation(action: (Location?) -> Unit) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                .addOnSuccessListener { location: Location? -> action(location) }
+                .addOnFailureListener { action(null) }
+        } else {
+            action(null)
         }
     }
 
@@ -232,10 +252,29 @@ fun WorkScreen(
                         enabled = !state.isLoading,
                         isLoading = state.isLoading,
                         onSwipeComplete = {
-                            viewModel.endWork(null)
+                            withCurrentLocation { location -> viewModel.endWork(location) }
                         },
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
                     )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+                    var showContinue by remember(entry.id) { mutableStateOf(false) }
+                    TextButton(onClick = { showContinue = !showContinue }) {
+                        Icon(Icons.Default.PersonAdd, contentDescription = null, tint = BrandBlue, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Continue with another person from here", color = BrandBlue, fontWeight = FontWeight.Bold)
+                    }
+                    if (showContinue) {
+                        ContinueWorkSection(
+                            currentPerson = entry.workGivenPerson,
+                            vehicleType = entry.vehicleType,
+                            isLoading = state.isLoading,
+                            onContinue = { nextPerson, nextRemarks ->
+                                withCurrentLocation { location -> viewModel.continueWork(nextPerson, nextRemarks, location) }
+                            }
+                        )
+                    }
                 }
             }
             
@@ -278,7 +317,7 @@ fun WorkScreen(
                     }
                     Spacer(modifier = Modifier.height(24.dp))
                     
-                    val workPeopleOptions = listOf("Vijay Anand P", "Shajahan S", "Prem Anand Y", "HR Department", "Manager", "IT Department", "Other")
+                    val workPeopleOptions = WORK_PEOPLE
                     var personExpanded by remember { mutableStateOf(false) }
                     var otherPerson by remember { mutableStateOf("") }
                     
@@ -411,5 +450,85 @@ fun WorkScreen(
                 }
             }
         }
+    }
+}
+
+/** Ends the current work here and starts the next person's work from the same spot. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ContinueWorkSection(
+    currentPerson: String,
+    vehicleType: String,
+    isLoading: Boolean,
+    onContinue: (person: String, remarks: String) -> Unit
+) {
+    var person by remember { mutableStateOf("") }
+    var otherPerson by remember { mutableStateOf("") }
+    var remarks by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) }
+    val finalPerson = (if (person == "Other") otherPerson else person).trim()
+
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Text(
+            "Ends the work for $currentPerson at your location and starts the next person from the same spot with the same ${vehicleType.lowercase()}. Each person gets their own km.",
+            style = MaterialTheme.typography.bodySmall,
+            color = TextGray
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("Next work given person", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = TextDark)
+        Spacer(modifier = Modifier.height(8.dp))
+        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+            OutlinedTextField(
+                value = person,
+                onValueChange = {},
+                readOnly = true,
+                placeholder = { Text("Select person", color = TextGray) },
+                leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = BrandBlue) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandBlue, unfocusedBorderColor = Color.LightGray)
+            )
+            ExposedDropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.background(Color.White)
+            ) {
+                WORK_PEOPLE.filter { it != currentPerson }.forEach { option ->
+                    DropdownMenuItem(text = { Text(option) }, onClick = { person = option; expanded = false })
+                }
+            }
+        }
+        if (person == "Other") {
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = otherPerson,
+                onValueChange = { otherPerson = it },
+                placeholder = { Text("Enter person name", color = TextGray) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        OutlinedTextField(
+            value = remarks,
+            onValueChange = { if (it.length <= 250) remarks = it },
+            placeholder = { Text("Remarks for the next person...", color = TextGray) },
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = BrandBlue, unfocusedBorderColor = Color.LightGray)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        com.example.drivertracking.ui.components.SwipeButton(
+            text = "Continue",
+            loadingText = "Switching...",
+            containerColor = BrandBlue,
+            contentColor = Color.White,
+            enabled = !isLoading && finalPerson.isNotBlank() && remarks.isNotBlank(),
+            isLoading = isLoading,
+            onSwipeComplete = { onContinue(finalPerson, remarks.trim()) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+        )
     }
 }

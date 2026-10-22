@@ -7,6 +7,7 @@ object Constants {
     const val KEY_DRIVER_ID = "driver_id"
     const val KEY_USER_NAME = "user_name"
     const val KEY_USER_ROLE = "user_role"
+    const val KEY_ACCESS_LEVEL = "access_level"
     
     // Tracking Settings
     const val LOCATION_UPDATE_INTERVAL = 3000L // 3 seconds when moving
