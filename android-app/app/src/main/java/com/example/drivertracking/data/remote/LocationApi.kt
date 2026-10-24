@@ -4,11 +4,14 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.POST
 import retrofit2.http.GET
+import retrofit2.http.Headers
 
 interface LocationApi {
+    @Headers("${RetryInterceptor.HEADER}: ${RetryInterceptor.SAFE_TO_REPEAT}")
     @POST("/api/login")
     suspend fun login(@Body request: LoginRequest): Response<LoginResponse>
 
+    @Headers("${RetryInterceptor.HEADER}: ${RetryInterceptor.NO_RETRY}")
     @POST("/api/driver/location")
     suspend fun sendLocation(@Body payload: LocationPayload): Response<LocationResponse>
 

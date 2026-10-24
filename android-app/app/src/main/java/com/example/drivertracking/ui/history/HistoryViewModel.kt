@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.drivertracking.data.remote.HistoryEntry
 import com.example.drivertracking.data.remote.LocationApi
 import com.example.drivertracking.util.SessionManager
+import com.example.drivertracking.util.networkErrorMessage
+import com.example.drivertracking.util.serverErrorMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,10 +53,10 @@ class HistoryViewModel @Inject constructor(
                         _uiState.value = _uiState.value.copy(isLoading = false, error = body?.message)
                     }
                 } else {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = "Server error")
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = serverErrorMessage(response.code(), "Server error"))
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false, error = "Network error: ${e.message}")
+                _uiState.value = _uiState.value.copy(isLoading = false, error = networkErrorMessage(e))
             }
         }
     }

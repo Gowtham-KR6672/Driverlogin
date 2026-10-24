@@ -16,6 +16,7 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.example.drivertracking.theme.DriverTrackingTheme
+import com.example.drivertracking.util.ServerStatus
 import com.example.drivertracking.util.SessionManager
 import com.example.drivertracking.worker.SyncWorker
 import dagger.hilt.android.AndroidEntryPoint
@@ -27,6 +28,8 @@ class MainActivity : ComponentActivity() {
     
     @Inject
     lateinit var sessionManager: SessionManager
+    @Inject
+    lateinit var serverStatus: ServerStatus
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
 
@@ -50,7 +53,7 @@ class MainActivity : ComponentActivity() {
         navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.argb(0x80, 0x1b, 0x1b, 0x1b))
     )
     setContent {
-      DriverTrackingTheme { Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { com.example.drivertracking.ui.navigation.AppNavigation(sessionManager) } }
+      DriverTrackingTheme { Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { com.example.drivertracking.ui.navigation.AppNavigation(sessionManager, serverStatus) } }
     }
   }
 }

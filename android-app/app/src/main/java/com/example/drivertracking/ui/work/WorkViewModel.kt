@@ -11,6 +11,8 @@ import com.example.drivertracking.data.remote.WorkEntry
 import com.example.drivertracking.util.CallSummary
 import com.example.drivertracking.util.CallLogCounter
 import com.example.drivertracking.util.SessionManager
+import com.example.drivertracking.util.networkErrorMessage
+import com.example.drivertracking.util.serverErrorMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,10 +64,10 @@ class WorkViewModel @Inject constructor(
                         _uiState.value = _uiState.value.copy(isLoading = false, error = body?.message)
                     }
                 } else {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = "Server error")
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = serverErrorMessage(response.code(), "Server error"))
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false, error = "Network error: ${e.message}")
+                _uiState.value = _uiState.value.copy(isLoading = false, error = networkErrorMessage(e))
             }
         }
     }
@@ -99,10 +101,10 @@ class WorkViewModel @Inject constructor(
                         _uiState.value = _uiState.value.copy(isLoading = false, error = body?.message)
                     }
                 } else {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = "Server error")
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = serverErrorMessage(response.code(), "Server error"))
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false, error = "Network error")
+                _uiState.value = _uiState.value.copy(isLoading = false, error = networkErrorMessage(e, "Network error"))
             }
         }
     }
@@ -139,10 +141,10 @@ class WorkViewModel @Inject constructor(
                         _uiState.value = _uiState.value.copy(isLoading = false, error = body?.message)
                     }
                 } else {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = "Server error")
+                    _uiState.value = _uiState.value.copy(isLoading = false, error = serverErrorMessage(response.code(), "Server error"))
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false, error = "Network error")
+                _uiState.value = _uiState.value.copy(isLoading = false, error = networkErrorMessage(e, "Network error"))
             }
         }
     }
@@ -171,11 +173,11 @@ class WorkViewModel @Inject constructor(
                 } else {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        error = body?.message ?: "Could not continue with $person"
+                        error = body?.message ?: serverErrorMessage(response.code(), "Could not continue with $person")
                     )
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(isLoading = false, error = "Network error")
+                _uiState.value = _uiState.value.copy(isLoading = false, error = networkErrorMessage(e, "Network error"))
             }
         }
     }

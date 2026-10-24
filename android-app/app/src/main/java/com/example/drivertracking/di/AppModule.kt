@@ -5,7 +5,9 @@ import androidx.room.Room
 import com.example.drivertracking.data.local.AppDatabase
 import com.example.drivertracking.data.local.LocationDao
 import com.example.drivertracking.data.remote.LocationApi
+import com.example.drivertracking.data.remote.RetryInterceptor
 import com.example.drivertracking.util.Constants
+import com.example.drivertracking.util.ServerStatus
 import com.example.drivertracking.util.SessionManager
 import dagger.Module
 import dagger.Provides
@@ -17,6 +19,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
@@ -25,7 +28,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(sessionManager: SessionManager): OkHttpClient {
+    fun provideOkHttpClient(sessionManager: SessionManager, serverStatus: ServerStatus): OkHttpClient {
         val logging = HttpLoggingInterceptor()
         logging.setLevel(HttpLoggingInterceptor.Level.BODY)
         
@@ -40,7 +43,14 @@ object AppModule {
             response
         }
 
+        // A sleeping server takes about a minute to start (see RetryInterceptor), so wait for it
+        // instead of failing at OkHttp's 10 second default. The call timeout caps all retries.
         return OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(120, TimeUnit.SECONDS)
+            .addInterceptor(RetryInterceptor(serverStatus))
             .addInterceptor(logging)
             .addInterceptor(authInterceptor)
             .build()

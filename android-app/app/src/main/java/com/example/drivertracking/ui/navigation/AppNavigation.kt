@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +53,7 @@ import com.example.drivertracking.ui.login.LoginScreen
 import com.example.drivertracking.ui.permission.PermissionScreen
 import com.example.drivertracking.ui.profile.ProfileScreen
 import com.example.drivertracking.ui.work.WorkScreen
+import com.example.drivertracking.util.ServerStatus
 import com.example.drivertracking.util.SessionManager
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
@@ -69,9 +71,10 @@ sealed class AdminScreen(val route: String, val title: String, val icon: ImageVe
 }
 
 @Composable
-fun AppNavigation(sessionManager: SessionManager) {
+fun AppNavigation(sessionManager: SessionManager, serverStatus: ServerStatus) {
     val navController = rememberNavController()
     val context = LocalContext.current
+    val serverWakingUp by serverStatus.wakingUp.collectAsState()
 
     LaunchedEffect(Unit) {
         sessionManager.sessionExpired.collect {
@@ -113,6 +116,9 @@ fun AppNavigation(sessionManager: SessionManager) {
     val adminNavItems = adminItems.map { NavItem(it.route, it.title, it.icon) }
 
     Scaffold(
+        topBar = {
+            if (serverWakingUp) ServerWakingUpBanner()
+        },
         bottomBar = {
             val navBackStackEntry by navController.currentBackStackEntryAsState()
             val currentDestination = navBackStackEntry?.destination
@@ -247,5 +253,30 @@ fun AppNavigation(sessionManager: SessionManager) {
             composable(Screen.History.route) { HistoryScreen(navController) }
             composable(Screen.Profile.route) { ProfileScreen(navController, sessionManager) }
         }
+    }
+}
+
+// Shown while a request waits on the server, e.g. while the sleeping Render instance starts.
+@Composable
+private fun ServerWakingUpBanner() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFFFF4E5))
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(16.dp),
+            strokeWidth = 2.dp,
+            color = Color(0xFFB45309)
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            "Connecting to the server… This can take up to a minute if it was asleep.",
+            color = Color(0xFF7C2D12),
+            fontSize = 13.sp
+        )
     }
 }

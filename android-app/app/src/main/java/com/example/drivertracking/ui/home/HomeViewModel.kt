@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.drivertracking.data.remote.HomeStats
 import com.example.drivertracking.data.remote.LocationApi
 import com.example.drivertracking.util.SessionManager
+import com.example.drivertracking.util.networkErrorMessage
+import com.example.drivertracking.util.serverErrorMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,10 +51,10 @@ class HomeViewModel @Inject constructor(
                         _uiState.value = _uiState.value.copy(error = body?.message ?: "Unknown error", isLoading = false)
                     }
                 } else {
-                    _uiState.value = _uiState.value.copy(error = "Server error: ${response.code()}", isLoading = false)
+                    _uiState.value = _uiState.value.copy(error = serverErrorMessage(response.code()), isLoading = false)
                 }
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = "Network error: ${e.message}", isLoading = false)
+                _uiState.value = _uiState.value.copy(error = networkErrorMessage(e), isLoading = false)
             }
         }
     }

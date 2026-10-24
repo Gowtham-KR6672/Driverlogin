@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.drivertracking.data.remote.LocationApi
 import com.example.drivertracking.data.remote.LoginRequest
 import com.example.drivertracking.util.SessionManager
+import com.example.drivertracking.util.networkErrorMessage
+import com.example.drivertracking.util.serverErrorMessage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -51,10 +53,10 @@ class LoginViewModel @Inject constructor(
                         _uiState.value = LoginUiState.Error(loginResponse?.message ?: "Login failed")
                     }
                 } else {
-                    _uiState.value = LoginUiState.Error("Server error: ${response.code()}")
+                    _uiState.value = LoginUiState.Error(serverErrorMessage(response.code()))
                 }
             } catch (e: Exception) {
-                _uiState.value = LoginUiState.Error("Network error: ${e.message}")
+                _uiState.value = LoginUiState.Error(networkErrorMessage(e))
             }
         }
     }
