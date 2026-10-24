@@ -666,6 +666,32 @@ def parse_positive_int(value, default):
     return parsed if parsed > 0 else default
 
 
+def parse_date_range(from_value, to_value):
+    """The from/to dates of a YYYY-MM-DD filter (None when missing or invalid), oldest first."""
+    dates = []
+    for value in (from_value, to_value):
+        try:
+            dates.append(datetime.strptime((value or "").strip(), "%Y-%m-%d").date())
+        except ValueError:
+            dates.append(None)
+    from_date, to_date = dates
+    if from_date and to_date and from_date > to_date:
+        from_date, to_date = to_date, from_date
+    return from_date, to_date
+
+
+def start_date_filter(from_date, to_date, column="next_start_time"):
+    """SQL conditions (each starting with AND) and params that keep entries started in the range."""
+    sql, params = "", []
+    if from_date:
+        sql += f" AND {column}::date >= %s"
+        params.append(from_date)
+    if to_date:
+        sql += f" AND {column}::date <= %s"
+        params.append(to_date)
+    return sql, params
+
+
 def current_month_bounds(month_arg=None):
     if month_arg:
         try:
@@ -877,14 +903,18 @@ def get_admin_home_stats(month_arg=None):
     }
 
 
-def get_admin_entries(selected_user_id="", limit=None):
+def get_admin_entries(selected_user_id="", limit=None, from_date=None, to_date=None):
     entry_params = []
-    user_filter = ""
+    user_filter = "WHERE TRUE"
     limit_clause = ""
 
     if selected_user_id:
-        user_filter = "WHERE e.user_id = %s"
+        user_filter += " AND e.user_id = %s"
         entry_params.append(selected_user_id)
+
+    date_filter, date_params = start_date_filter(from_date, to_date, "e.next_start_time")
+    user_filter += date_filter
+    entry_params += date_params
 
     if limit:
         limit_clause = "LIMIT %s"
@@ -1547,6 +1577,9 @@ def admin_users():
 @admin_required
 def admin_work():
     selected_user_id = request.args.get("user_id", "").strip()
+    # Optional start-date range; the list and its totals cover only entries started in it.
+    from_date, to_date = parse_date_range(request.args.get("from_date"), request.args.get("to_date"))
+    date_filter, date_params = start_date_filter(from_date, to_date)
     per_page_options = ADMIN_PER_PAGE_OPTIONS
     per_page = parse_positive_int(request.args.get("per_page"), ADMIN_ENTRY_LIMIT)
     if per_page not in per_page_options:
@@ -1583,8 +1616,9 @@ def admin_work():
                 selected_user = cur.fetchone()
 
             if selected_user:
+                # Time and distance count completed entries; entries in progress are still growing.
                 cur.execute(
-                    """
+                    f"""
                     SELECT
                         COUNT(*) AS entry_count,
                         COALESCE(
@@ -1596,11 +1630,12 @@ def admin_work():
                                 END
                             ),
                             0
-                        ) AS total_seconds
+                        ) AS total_seconds,
+                        COALESCE(SUM(distance_km) FILTER (WHERE end_time IS NOT NULL), 0) AS total_km
                     FROM work_entries
-                    WHERE user_id = %s
+                    WHERE user_id = %s {date_filter}
                     """,
-                    (selected_user["id"],),
+                    [selected_user["id"], *date_params],
                 )
                 summary = cur.fetchone()
                 seconds = int(summary["total_seconds"] or 0)
@@ -1610,6 +1645,7 @@ def admin_work():
                     "display": f"{hours:02d}:{minutes:02d}:{seconds:02d}",
                     "hours": round(int(summary["total_seconds"] or 0) / 3600, 2),
                     "entry_count": int(summary["entry_count"] or 0),
+                    "km_display": f"{float(summary['total_km']):.2f} km",
                 }
                 total_pages = max(math.ceil(total["entry_count"] / per_page), 1)
                 page = min(page, total_pages)
@@ -1623,20 +1659,20 @@ def admin_work():
                     "next_page": min(page + 1, total_pages),
                 }
                 cur.execute(
-                    """
+                    f"""
                     SELECT e.*, u.username
                     FROM work_entries e
                     JOIN users u ON u.id = e.user_id
-                    WHERE e.user_id = %s
+                    WHERE e.user_id = %s {date_filter}
                     ORDER BY e.created_at DESC
                     LIMIT %s OFFSET %s
                     """,
-                    (selected_user["id"], per_page, offset),
+                    [selected_user["id"], *date_params, per_page, offset],
                 )
                 entries = add_duration(cur.fetchall())
             else:
                 entries = []
-                total = {"display": "00:00:00", "hours": 0, "entry_count": 0}
+                total = {"display": "00:00:00", "hours": 0, "entry_count": 0, "km_display": "0.00 km"}
             active_location = None
 
             if selected_user:
@@ -1669,6 +1705,8 @@ def admin_work():
         per_page=per_page,
         per_page_options=per_page_options,
         pagination=pagination,
+        from_date=from_date.isoformat() if from_date else "",
+        to_date=to_date.isoformat() if to_date else "",
     )
 
 
@@ -1870,11 +1908,12 @@ def delete_user(user_id):
 @admin_required
 def download_admin_data():
     selected_user_id = request.args.get("user_id", "").strip()
+    from_date, to_date = parse_date_range(request.args.get("from_date"), request.args.get("to_date"))
     output = io.StringIO()
     writer = csv.writer(output)
 
     if selected_user_id:
-        entries = get_admin_entries(selected_user_id)
+        entries = get_admin_entries(selected_user_id, from_date=from_date, to_date=to_date)
         writer.writerow(["User", "Work Given Person", "Vehicle", "Start Time", "End Time", "Total Time", "Travel Distance", "Top Speed", "Average Speed", "Incoming Calls", "Outgoing Calls", "Missed Calls", "Calls While Driving", "Trip", "Remarks", "Submitted"])
 
         for entry in entries:
@@ -1898,7 +1937,12 @@ def download_admin_data():
                     entry["created_at"].strftime("%Y-%m-%d %H:%M:%S"),
                 ]
             )
-        filename = f"admin_user_{selected_user_id}_entries.csv"
+        filename_parts = [f"admin_user_{selected_user_id}_entries"]
+        if from_date:
+            filename_parts.append(f"from_{from_date.isoformat()}")
+        if to_date:
+            filename_parts.append(f"to_{to_date.isoformat()}")
+        filename = "_".join(filename_parts) + ".csv"
     else:
         summaries = get_admin_user_summaries()
         writer.writerow(["User Name", "Total Time", "Total Hours", "Entry Count"])

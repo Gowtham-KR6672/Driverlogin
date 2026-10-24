@@ -3985,6 +3985,11 @@ tbody tr:hover {
     color: #9333ea;
 }
 
+.home-metric-blue {
+    background: #dbeafe;
+    color: #2563eb;
+}
+
 .home-metric-card span,
 .home-metric-card small {
     color: var(--app-muted);
@@ -5357,8 +5362,23 @@ button:hover,
 }
 
 .admin-entry-filter {
-    grid-template-columns: minmax(320px, 420px) auto;
+    grid-template-columns: minmax(240px, 320px) minmax(320px, 420px) auto;
     justify-content: start;
+}
+
+.admin-entry-filter .history-redesign-actions {
+    white-space: nowrap;
+}
+
+/* Employee and Date Range share a row; the buttons move below until there is room. */
+@media (max-width: 1280px) {
+    .admin-entry-filter {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-entry-filter .history-redesign-actions {
+        grid-column: 1 / -1;
+    }
 }
 
 .admin-entry-list-header {
@@ -5378,7 +5398,8 @@ button:hover,
 .admin-entry-summary-grid {
     display: grid;
     gap: 24px;
-    grid-template-columns: repeat(2, minmax(0, 260px));
+    /* Up to three cards per row; they wrap rather than squeeze the values. */
+    grid-template-columns: repeat(auto-fill, minmax(280px, 300px));
     margin-bottom: 24px;
 }
 
@@ -5918,6 +5939,11 @@ button:hover,
 [data-theme="dark"] .home-metric-purple {
     background: rgba(147, 51, 234, 0.2);
     color: #c084fc;
+}
+
+[data-theme="dark"] .home-metric-blue {
+    background: rgba(37, 99, 235, 0.2);
+    color: #93c5fd;
 }
 
 [data-theme="dark"] .admin-started-row {

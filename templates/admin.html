@@ -273,9 +273,23 @@
                     </select>
                 </span>
             </label>
+            <label>
+                Date Range
+                <span class="history-filter-control">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/></svg>
+                    <input type="date" name="from_date" value="{{ from_date }}" aria-label="From date">
+                    <span class="history-filter-separator">to</span>
+                    <input type="date" name="to_date" value="{{ to_date }}" aria-label="To date">
+                </span>
+            </label>
             <input type="hidden" name="per_page" value="{{ per_page }}">
             <input type="hidden" name="page" value="1">
-            <button type="submit">Show Work Entries</button>
+            <div class="filter-actions history-redesign-actions">
+                <button type="submit">Show Work Entries</button>
+                {% if selected_user and (from_date or to_date) %}
+                    <a class="button-link" href="{{ url_for('admin_work', user_id=selected_user.id, per_page=per_page) }}">Clear Dates</a>
+                {% endif %}
+            </div>
         </form>
 
         {% if selected_user %}
@@ -285,6 +299,8 @@
                     {% if entries %}
                         <form method="get" action="{{ url_for('admin_work') }}">
                             <input type="hidden" name="user_id" value="{{ selected_user.id }}">
+                            <input type="hidden" name="from_date" value="{{ from_date }}">
+                            <input type="hidden" name="to_date" value="{{ to_date }}">
                             <input type="hidden" name="page" value="1">
                             <select class="per-page-select" name="per_page" aria-label="Rows per page" onchange="this.form.submit()">
                                 {% for option in per_page_options %}
@@ -293,7 +309,7 @@
                             </select>
                         </form>
                     {% endif %}
-                    <a class="button-link" href="{{ url_for('download_admin_data', user_id=selected_user.id) }}">Download</a>
+                    <a class="button-link" href="{{ url_for('download_admin_data', user_id=selected_user.id, from_date=from_date or none, to_date=to_date or none) }}">Download</a>
                 </div>
             </div>
 
@@ -309,13 +325,23 @@
                     </div>
                 </article>
                 <article class="home-metric-card">
+                    <div class="home-metric-icon home-metric-blue">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/></svg>
+                    </div>
+                    <div>
+                        <span>Total Distance</span>
+                        <strong>{{ total.km_display }}</strong>
+                        <small>Completed entries</small>
+                    </div>
+                </article>
+                <article class="home-metric-card">
                     <div class="home-metric-icon home-metric-green">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9z"/></svg>
                     </div>
                     <div>
                         <span>Entry Count</span>
                         <strong>{{ total.entry_count }}</strong>
-                        <small>Selected user only</small>
+                        <small>{% if from_date and to_date %}{{ from_date }} to {{ to_date }}{% elif from_date %}From {{ from_date }}{% elif to_date %}Up to {{ to_date }}{% else %}Selected user only{% endif %}</small>
                     </div>
                 </article>
             </div>
@@ -384,21 +410,21 @@
                     {% endfor %}
                     {% if group.is_trip %}</section>{% endif %}
                 {% else %}
-                    <div class="history-empty">No entries yet.</div>
+                    <div class="history-empty">{% if from_date or to_date %}No entries in these dates.{% else %}No entries yet.{% endif %}</div>
                 {% endfor %}
             </div>
 
             {% if pagination.total_pages > 1 %}
                 <nav class="history-redesign-pagination" aria-label="Entry pages">
                     {% if pagination.has_previous %}
-                        <a href="{{ url_for('admin_work', user_id=selected_user.id, per_page=per_page, page=pagination.previous_page) }}" aria-label="Previous page">&lt;</a>
+                        <a href="{{ url_for('admin_work', user_id=selected_user.id, from_date=from_date or none, to_date=to_date or none, per_page=per_page, page=pagination.previous_page) }}" aria-label="Previous page">&lt;</a>
                     {% else %}
                         <span class="disabled" aria-hidden="true">&lt;</span>
                     {% endif %}
                     <span class="active">{{ pagination.page }}</span>
                     <small>Page {{ pagination.page }} of {{ pagination.total_pages }}</small>
                     {% if pagination.has_next %}
-                        <a href="{{ url_for('admin_work', user_id=selected_user.id, per_page=per_page, page=pagination.next_page) }}" aria-label="Next page">Next &gt;</a>
+                        <a href="{{ url_for('admin_work', user_id=selected_user.id, from_date=from_date or none, to_date=to_date or none, per_page=per_page, page=pagination.next_page) }}" aria-label="Next page">Next &gt;</a>
                     {% else %}
                         <span class="disabled" aria-hidden="true">Next &gt;</span>
                     {% endif %}
